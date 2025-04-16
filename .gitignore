@@ -12,7 +12,6 @@ downloads/
 eggs/
 .eggs/
 # Python lib but not frontend lib
-/lib/
 /lib64/
 # Keep the Next.js lib directory
 !/nlp_sql_bot_frontend/lib/
