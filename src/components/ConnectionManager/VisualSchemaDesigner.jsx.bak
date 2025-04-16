@@ -1,0 +1,1580 @@
+import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
+import { 
+  Typography, 
+  Box, 
+  TextField, 
+  Checkbox, 
+  Button, 
+  FormControlLabel, 
+  Dialog, 
+  DialogTitle, 
+  DialogContent, 
+  DialogActions, 
+  DialogContentText,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
+} from '@mui/material';
+import { styled, keyframes } from '@mui/material/styles';
+
+// Import Material-UI icons
+import KeyIcon from '@mui/icons-material/VpnKey';
+import ForeignKeyIcon from '@mui/icons-material/Link';
+import SearchIcon from '@mui/icons-material/Search';
+import DeleteIcon from '@mui/icons-material/Delete';
+
+// Import ReactFlow components
+import { 
+  ReactFlow, 
+  ReactFlowProvider, 
+  Background, 
+  Controls, 
+  Handle, 
+  Position, 
+  MarkerType, 
+  ConnectionLineType, 
+  useNodesState, 
+  useEdgesState 
+} from 'reactflow';
+import 'reactflow/dist/style.css';
+
+// Styled components
+const StyledNode = styled(Box)(({ theme }) => ({
+  width: '250px',
+  backgroundColor: theme.palette.background.paper,
+  border: `1px solid ${theme.palette.divider}`,
+  borderRadius: theme.shape.borderRadius,
+  boxShadow: theme.shadows[2],
+  overflow: 'hidden'
+}));
+
+const NodeHeader = styled(Box)(({ theme }) => ({
+  padding: theme.spacing(1.5),
+  backgroundColor: theme.palette.primary.main,
+  color: theme.palette.primary.contrastText,
+  borderBottom: `1px solid ${theme.palette.divider}`,
+  cursor: 'move',
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  userSelect: 'none',
+}));
+
+const ColumnList = styled(Box)(({ theme }) => ({
+  maxHeight: '400px',
+  overflowY: 'auto',
+  padding: 0,
+  '&::-webkit-scrollbar': {
+    width: '8px',
+  },
+  '&::-webkit-scrollbar-track': {
+    background: '#f1f1f1',
+    borderRadius: '4px',
+  },
+  '&::-webkit-scrollbar-thumb': {
+    background: '#888',
+    borderRadius: '4px',
+  },
+  '&::-webkit-scrollbar-thumb:hover': {
+    background: '#555',
+  }
+}));
+
+const KeyIconWrapper = styled('span')({
+  marginRight: '4px',
+  color: '#ffc107',
+  display: 'inline-flex',
+  alignItems: 'center',
+  fontSize: '16px'
+});
+
+const StyledSearchBox = styled(Box)(({ theme }) => ({
+  padding: theme.spacing(1),
+  backgroundColor: theme.palette.background.default
+}));
+
+const DeleteButton = styled(Box)(({ theme }) => ({
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: theme.palette.error.main,
+  backgroundColor: theme.palette.error.light,
+  borderRadius: '50%',
+  width: 24,
+  height: 24,
+  ':hover': {
+    backgroundColor: theme.palette.error.main,
+    color: theme.palette.error.contrastText
+  }
+}));
+
+// Styled component for column items in the table node
+const ColumnItem = styled(Box)(({ 
+  theme, 
+  isSelected, 
+  isHighlighted, 
+  isSource, 
+  isCompatible, 
+  isIncompatible, 
+  isPrimary,
+  isForeignKey 
+}) => ({
+  padding: theme.spacing(0.5, 1),
+  borderBottom: `1px solid ${theme.palette.divider}`,
+  backgroundColor: isSource 
+    ? '#fff9c4' 
+    : isSelected 
+      ? '#e3f2fd' 
+      : isCompatible
+        ? '#e8f5e9'
+        : isIncompatible
+          ? '#ffebee'
+          : 'transparent',
+  position: 'relative',
+  ':hover': {
+    backgroundColor: isSource 
+      ? '#fff9c4' 
+      : isSelected 
+        ? '#bbdefb' 
+        : isCompatible
+          ? '#c8e6c9'
+          : isIncompatible
+            ? '#ffcdd2'
+            : '#f5f5f5',
+  },
+  boxShadow: isHighlighted ? 'inset 0 0 0 2px #2196f3' : 'none',
+  border: isHighlighted ? '1px solid #2196f3' : 'none',
+  height: '56px', // Fixed height for better alignment of handles
+  display: 'flex',
+  alignItems: 'center',
+  // Add left border for primary keys
+  borderLeft: isPrimary ? '4px solid #ffc107' : isForeignKey ? '4px solid #1976d2' : 'none'
+}));
+
+const ColumnContent = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  width: '100%'
+}));
+
+const ColumnName = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  flexDirection: 'column',
+  flexGrow: 1,
+  marginLeft: theme.spacing(1)
+}));
+
+const ColumnType = styled(Box)(({ theme }) => ({
+  color: theme.palette.text.secondary,
+  fontSize: '12px'
+}));
+
+// Custom table node component
+const TableNode = memo(({ data, id }) => {
+  const { 
+    label, 
+    columns = [], 
+    tableSelectedColumns = [], 
+    onColumnSelect,
+    activeSourceInfo,
+    highlightedColumns
+  } = data;
+
+  // Function to handle checkbox changes
+  const handleChange = (event, columnName) => {
+    const isChecked = event.target.checked;
+    onColumnSelect(id, columnName, isChecked);
+  };
+
+  // Sort columns: Primary Keys at top, then Foreign Keys, then selected, 
+  // then the rest alphabetically
+  const sortedColumns = useMemo(() => {
+    return [...columns].sort((a, b) => {
+      // Primary keys at the top
+      if (a.isPrimaryKey && !b.isPrimaryKey) return -1;
+      if (!a.isPrimaryKey && b.isPrimaryKey) return 1;
+
+      // Foreign keys next
+      const aIsForeignKey = a.isForeignKey || 
+                          a.name.toLowerCase().endsWith('_id') || 
+                          (a.name.toLowerCase().includes('id') && a.name.toLowerCase() !== 'id');
+      const bIsForeignKey = b.isForeignKey || 
+                          b.name.toLowerCase().endsWith('_id') || 
+                          (b.name.toLowerCase().includes('id') && b.name.toLowerCase() !== 'id');
+
+      if (aIsForeignKey && !bIsForeignKey) return -1;
+      if (!aIsForeignKey && bIsForeignKey) return 1;
+
+      // Then selected columns
+      const aIsSelected = tableSelectedColumns.includes(a.name);
+      const bIsSelected = tableSelectedColumns.includes(b.name);
+
+      if (aIsSelected && !bIsSelected) return -1;
+      if (!aIsSelected && bIsSelected) return 1;
+
+      // Finally alphabetically
+      return a.name.localeCompare(b.name);
+    });
+  }, [columns, tableSelectedColumns]);
+
+  // Filter out columns the user may not want to see
+  const filteredColumns = sortedColumns;
+
+  // Check if column is active source
+  const isColumnActiveSource = (columnName) => {
+    return activeSourceInfo && 
+           activeSourceInfo.sourceTable === id && 
+           activeSourceInfo.sourceColumn === columnName;
+  };
+
+  // Check if handle is highlighted
+  const isHandleHighlighted = (columnName) => {
+    const handleId = `${id}__${columnName}`;
+    return !!highlightedColumns[handleId];
+  };
+
+  return (
+    <StyledNode>
+      <NodeHeader className="draggable-handle">
+        <Typography variant="h6" fontSize={14} fontWeight="bold">
+          {label}
+        </Typography>
+      </NodeHeader>
+      <ColumnList>
+        {filteredColumns.map((column) => {
+          const isSelected = tableSelectedColumns.includes(column.name);
+          const isPrimary = column.isPrimaryKey;
+          const isSource = isColumnActiveSource(column.name);
+          const isHighlighted = isHandleHighlighted(column.name);
+
+          // Check if this is likely a foreign key
+          const isForeignKey = column.isForeignKey || 
+                             column.name.toLowerCase().endsWith('_id') ||
+                             column.name.toLowerCase().startsWith('fk_') ||
+                             (column.name.toLowerCase().includes('id') && column.name.toLowerCase() !== 'id');
+
+          // For primary and foreign keys, we always want them selected and disabled
+          const isDisabled = isPrimary || isForeignKey;
+
+          return (
+            <ColumnItem 
+              key={column.name}
+              isHighlighted={isHighlighted}
+              isSource={isSource}
+              isPrimary={isPrimary}
+              isForeignKey={isForeignKey && !isPrimary}
+            >
+              <ColumnContent>
+                <Checkbox 
+                  checked={isSelected || isPrimary || isForeignKey} 
+                  onChange={(e) => handleChange(e, column.name)}
+                  disabled={isDisabled}
+                  size="small"
+                  sx={{ 
+                    padding: '0px 5px 0px 0px',
+                    '& .MuiSvgIcon-root': { fontSize: 16 } 
+                  }}
+                />
+                <ColumnName>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    {isPrimary && (
+                      <KeyIcon 
+                        fontSize="small" 
+                        style={{ 
+                          color: 'gold', 
+                          marginRight: '4px',
+                          fontSize: '14px'
+                        }} 
+                      />
+                    )}
+                    {isForeignKey && !isPrimary && (
+                      <ForeignKeyIcon 
+                        fontSize="small" 
+                        style={{ 
+                          color: '#1976d2', 
+                          marginRight: '4px',
+                          fontSize: '14px'
+                        }} 
+                      />
+                    )}
+                    {column.name}
+                  </Box>
+                  <ColumnType>{column.type}</ColumnType>
+                </ColumnName>
+              </ColumnContent>
+              <Handle
+                type="source"
+                position={Position.Right}
+                id={`${id}__${column.name}`}
+                style={{
+                  opacity: isSelected ? 1 : 0.3, 
+                  background: isSource ? '#ff0000' : '#555',
+                  width: '10px',
+                  height: '10px'
+                }}
+              />
+              <Handle
+                type="target"
+                position={Position.Left}
+                id={`${id}__${column.name}`}
+                style={{
+                  opacity: isSelected ? 1 : 0.3,
+                  background: isHighlighted ? '#00ff00' : '#555',
+                  width: '10px',
+                  height: '10px'
+                }}
+              />
+            </ColumnItem>
+          );
+        })}
+      </ColumnList>
+    </StyledNode>
+  );
+});
+
+// Add explicit displayName
+TableNode.displayName = 'TableNode';
+
+// Custom edge for relationships
+const CustomEdge = ({
+  id,
+  source,
+  target,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  style = {},
+  markerEnd,
+  data
+}) => {
+  // Use a Bezier curve for more horizontal connections
+  const getBezierPath = () => {
+    // Calculate the midpoint and ensure a more horizontal path
+    const midX = (sourceX + targetX) / 2;
+
+    return `M${sourceX},${sourceY} C${midX},${sourceY} ${midX},${targetY} ${targetX},${targetY}`;
+  };
+
+  return (
+    <>
+      <path
+        id={id}
+        style={{
+          ...style,
+          strokeWidth: 2,
+          stroke: style.stroke || '#1976d2',
+        }}
+        className="react-flow__edge-path"
+        d={getBezierPath()}
+        markerEnd={markerEnd}
+      />
+      {data && data.onDelete && (
+        <EdgeDeleteButton
+          size="small"
+          onClick={(e) => {
+            e.stopPropagation();
+            data.onDelete();
+          }}
+        >
+          <DeleteIcon fontSize="small" />
+        </EdgeDeleteButton>
+      )}
+    </>
+  );
+};
+
+// Helper function to get column type from schema
+const getColumnType = (schema, tableName, columnName) => {
+  if (!schema || !schema[tableName]) return null;
+
+  const column = schema[tableName].columns.find(col => col.name === columnName);
+  return column ? column.type : null;
+};
+
+// Helper function to check if data types are compatible for relationships
+const areDataTypesCompatible = (sourceType, targetType) => {
+  console.log('Checking compatibility between:', sourceType, targetType);
+
+  // Handle null/undefined values
+  if (!sourceType || !targetType) return false;
+
+  // Explicitly allow INTEGER to INTEGER connections
+  if (String(sourceType).toUpperCase().includes('INTEGER') && 
+      String(targetType).toUpperCase().includes('INTEGER')) {
+    console.log('INTEGER to INTEGER connection allowed');
+    return true;
+  }
+
+  // Normalize types for comparison (remove size constraints and collations)
+  const source = sourceType.toLowerCase().replace(/\(.*?\)/g, '').replace(/\s+collate\s+.*/i, '').trim();
+  const target = targetType.toLowerCase().replace(/\(.*?\)/g, '').replace(/\s+collate\s+.*/i, '').trim();
+
+  console.log('Comparing normalized types:', source, target);
+
+  // Group data types into categories
+  const numericTypes = ['int', 'integer', 'float', 'double', 'decimal', 'number', 'bigint', 'smallint', 'tinyint', 'numeric'];
+  const stringTypes = ['varchar', 'text', 'char', 'string', 'nvarchar', 'nchar'];
+  const dateTypes = ['date', 'datetime', 'timestamp', 'time'];
+  const booleanTypes = ['boolean', 'bool', 'bit'];
+
+  // Check if types belong to the same category
+  const isSourceNumeric = numericTypes.some(t => source.includes(t));
+  const isTargetNumeric = numericTypes.some(t => target.includes(t));
+
+  const isSourceString = stringTypes.some(t => source.includes(t));
+  const isTargetString = stringTypes.some(t => target.includes(t));
+
+  const isSourceDate = dateTypes.some(t => source.includes(t));
+  const isTargetDate = dateTypes.some(t => target.includes(t));
+
+  const isSourceBoolean = booleanTypes.some(t => source.includes(t));
+  const isTargetBoolean = booleanTypes.some(t => target.includes(t));
+
+  // Same category matches
+  if (isSourceNumeric && isTargetNumeric) return true;
+  if (isSourceString && isTargetString) return true;
+  if (isSourceDate && isTargetDate) return true;
+  if (isSourceBoolean && isTargetBoolean) return true;
+
+  // IDs can relate to other IDs or numeric types
+  if (source.endsWith('id') && (target.endsWith('id') || isTargetNumeric)) return true;
+  if (target.endsWith('id') && (source.endsWith('id') || isSourceNumeric)) return true;
+
+  // Otherwise types are not compatible
+  return false;
+};
+
+// Helper function to check if a table is an Ad Spend table
+const isAdSpendTable = (tableName) => {
+  if (!tableName) return false;
+  
+  const adSpendTables = [
+    'Community', 
+    'ChallengeFree', 
+    'ChallengePaid', 
+    'ChallengeHybrid',
+    'LowTicketAcquisition', 
+    'HighTicketVSL', 
+    'InstagramDM', 
+    'WebinarBase', 
+    'WebinarAdvance'
+  ];
+
+  return adSpendTables.includes(tableName) || /ad|spend|campaign|advert/i.test(tableName);
+};
+
+// CSS animation in style tag using keyframes
+const keyframesPulse = keyframes`
+  0% {
+    transform: translateY(-50%) scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(-50%) scale(1.2);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(-50%) scale(1);
+    opacity: 1;
+  }
+`;
+
+// Use theme-independent styled instead of GlobalStyle
+const ConnectionDot = styled('div')(({ theme }) => ({
+  position: 'absolute',
+  width: 18,
+  height: 18,
+  background: '#f44336',
+  border: '2px solid black',
+  borderRadius: '50%',
+  zIndex: 10000,
+  boxShadow: '0 0 10px rgba(255,0,0,0.7)',
+  cursor: 'crosshair',
+  transform: 'translateY(-50%)',
+  animation: `${keyframesPulse} 1.5s infinite`,
+  '&:hover': {
+    transform: 'translateY(-50%) scale(1.3)',
+    transition: 'transform 0.2s ease',
+  }
+}));
+
+const StyledTableNode = styled(Box)(({ theme }) => ({
+  border: '2px solid #1976d2',
+  borderRadius: theme.shape.borderRadius,
+  backgroundColor: '#fff',
+  boxShadow: theme.shadows[2],
+  width: '280px',
+  overflow: 'hidden',
+  position: 'relative',
+  padding: theme.spacing(0),
+  '& .table-header': {
+    backgroundColor: theme.palette.primary.main,
+    color: theme.palette.primary.contrastText,
+    padding: theme.spacing(1),
+    fontWeight: 'bold',
+    borderBottom: '1px solid #ccc',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  '& .table-content': {
+    padding: theme.spacing(1),
+  },
+  '& .column-container': {
+    maxHeight: '300px',
+    overflowY: 'auto',
+    overflowX: 'hidden'
+  },
+  '& .search-field': {
+    margin: theme.spacing(1, 0),
+    width: '100%'
+  },
+  '& .scrollable-columns': {
+    maxHeight: '250px',
+    overflowY: 'auto',
+    overflowX: 'hidden',
+    // Custom scrollbar styling
+    '&::-webkit-scrollbar': {
+      width: '8px',
+    },
+    '&::-webkit-scrollbar-track': {
+      backgroundColor: '#f1f1f1',
+      borderRadius: '4px',
+    },
+    '&::-webkit-scrollbar-thumb': {
+      backgroundColor: theme.palette.primary.light,
+      borderRadius: '4px',
+    },
+    '&::-webkit-scrollbar-thumb:hover': {
+      backgroundColor: theme.palette.primary.main,
+    }
+  }
+}));
+
+const SchemaContainer = styled('div')({
+  width: '100%',
+  height: '70vh',
+  marginTop: '10px',
+  border: '1px solid #e0e0e0',
+  borderRadius: '4px',
+  background: '#f5f5f5',
+  position: 'relative'
+});
+
+const StyledDeleteButton = styled(Button)({
+  padding: '2px',
+  position: 'absolute',
+  top: '-15px',
+  right: '0',
+  zIndex: 10,
+  backgroundColor: '#ffffff',
+  border: '1px solid #e0e0e0',
+  '&:hover': {
+    backgroundColor: '#f5f5f5'
+  },
+  width: '22px',
+  height: '22px'
+});
+
+const EdgeDeleteButton = styled(Button)({
+  padding: '2px',
+  position: 'absolute',
+  top: '-12px',
+  right: 'calc(50% - 10px)',
+  zIndex: 10,
+  backgroundColor: '#ffffff',
+  border: '1px solid #e0e0e0',
+  '&:hover': {
+    backgroundColor: '#f44336',
+    color: '#ffffff'
+  },
+  width: '20px',
+  height: '20px',
+  opacity: 0,
+  transition: 'opacity 0.2s ease',
+  '.react-flow__edge:hover &': {
+    opacity: 1
+  }
+});
+
+const VisualSchemaDesigner = ({ 
+  schema, 
+  selectedTables = [], 
+  selectedColumns = {}, 
+  relationships = [], 
+  onSelectedColumnsChange, 
+  onRelationshipsChange,
+  connectionId
+}) => {
+  // References and state management
+  const reactFlowWrapper = useRef(null);
+  const [reactFlowInstance, setReactFlowInstance] = useState(null);
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [activeSourceInfo, setActiveSourceInfo] = useState(null);
+  const [relationshipType, setRelationshipType] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [relationshipDialogOpen, setRelationshipDialogOpen] = useState(false);
+  const [addingRelationship, setAddingRelationship] = useState(false);
+  const [tableSelectedColumns, setTableSelectedColumns] = useState(selectedColumns || {});
+  const [highlightedColumns, setHighlightedColumns] = useState({});
+  const [currentRelationship, setCurrentRelationship] = useState(null);
+
+  // Create a unique storage key using connectionId
+  const STORAGE_KEY = `visual-schema-positions-${connectionId || 'default'}`;
+
+  // Save node positions to localStorage
+  const savePositionsToStorage = useCallback((nodesToSave) => {
+    if (!nodesToSave || !nodesToSave.length) return;
+
+    try {
+      const positions = {};
+
+      nodesToSave.forEach(node => {
+        if (node.position) {
+          positions[node.id] = node.position;
+        }
+      });
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(positions));
+      console.log('Saved positions to localStorage:', positions);
+    } catch (error) {
+      console.error('Error saving positions:', error);
+    }
+  }, [STORAGE_KEY]);
+
+  // Load node positions from localStorage
+  const loadPositionsFromStorage = useCallback(() => {
+    try {
+      const savedPositions = localStorage.getItem(STORAGE_KEY);
+      if (savedPositions) {
+        return JSON.parse(savedPositions);
+      }
+    } catch (error) {
+      console.error('Error loading positions:', error);
+    }
+    return {};
+  }, [STORAGE_KEY]);
+
+  // Load relationships from localStorage
+  const loadRelationshipsFromStorage = useCallback(() => {
+    try {
+      const storageKey = `visual-schema-relationships-${connectionId}`;
+      const savedRelationships = localStorage.getItem(storageKey);
+      if (savedRelationships) {
+        return JSON.parse(savedRelationships);
+      }
+    } catch (error) {
+      console.error('Error loading relationships from localStorage:', error);
+    }
+    return null;
+  }, [connectionId]);
+
+  // Create a unique edge ID for a relationship
+  const createEdgeId = useCallback((sourceTable, sourceColumn, targetTable, targetColumn) => {
+    return `${sourceTable}__${sourceColumn}->${targetTable}__${targetColumn}`;
+  }, []);
+
+  // Function to get column data from schema
+  const getTableColumnsData = useCallback((schema, tableName) => {
+    if (!schema || !schema[tableName] || !schema[tableName].columns) return [];
+
+    return schema[tableName].columns.map(col => ({
+      name: col.name,
+      type: col.type,
+      isPrimaryKey: col.is_primary_key || col.key === 'PRI',
+      isNullable: col.is_nullable,
+      isIndexed: col.is_indexed || col.key === 'MUL' || col.key === 'UNI',
+      isAdSpendColumn: ['AdSpend', 'AdSpendMeta', 'AdSpendGoogle', 'AdSpendYouTube', 'AdSpendTiktok', 'TotalAdSpend'].includes(col.name)
+    }));
+  }, []);
+
+  // Function to check if data types are compatible for relationship
+  const areDataTypesCompatible = useCallback((sourceTable, sourceColumn, targetTable, targetColumn) => {
+    if (!schema || !schema[sourceTable] || !schema[targetTable]) return false;
+
+    const sourceColumns = schema[sourceTable].columns || [];
+    const targetColumns = schema[targetTable].columns || [];
+
+    const sourceCol = sourceColumns.find(col => col.name === sourceColumn);
+    const targetCol = targetColumns.find(col => col.name === targetColumn);
+
+    if (!sourceCol || !targetCol) return false;
+
+    // Get data types
+    const sourceType = (sourceCol.data_type || sourceCol.type || '').toLowerCase();
+    const targetType = (targetCol.data_type || targetCol.type || '').toLowerCase();
+
+    // Log for debugging
+    console.log(`Checking compatibility: ${sourceTable}.${sourceColumn}(${sourceType}) -> ${targetTable}.${targetColumn}(${targetType})`);
+
+    // For exact matches
+    if (sourceType === targetType) {
+      console.log('Exact type match - compatible');
+      return true;
+    }
+
+    // Explicitly allow INTEGER to INTEGER connections
+    if (sourceType.toUpperCase().includes('INTEGER') && 
+        targetType.toUpperCase().includes('INTEGER')) {
+      console.log('INTEGER to INTEGER connection allowed');
+      return true;
+    }
+
+    // For common compatible types
+    const numericTypes = ['int', 'float', 'double', 'decimal', 'number', 'bigint', 'smallint', 'tinyint', 'numeric'];
+    const stringTypes = ['varchar', 'text', 'char', 'string', 'nvarchar', 'nchar'];
+    const dateTypes = ['date', 'datetime', 'timestamp', 'time'];
+
+    // Check if both types are in the same category
+    const isSourceNumeric = numericTypes.some(t => sourceType.includes(t));
+    const isTargetNumeric = numericTypes.some(t => targetType.includes(t));
+    if (isSourceNumeric && isTargetNumeric) {
+      console.log('Both types are numeric - compatible');
+      return true;
+    }
+
+    const isSourceString = stringTypes.some(t => sourceType.includes(t));
+    const isTargetString = stringTypes.some(t => targetType.includes(t));
+    if (isSourceString && isTargetString) {
+      console.log('Both types are strings - compatible');
+      return true;
+    }
+
+    const isSourceDate = dateTypes.some(t => sourceType.includes(t));
+    const isTargetDate = dateTypes.some(t => targetType.includes(t));
+    if (isSourceDate && isTargetDate) {
+      console.log('Both types are dates - compatible');
+      return true;
+    }
+
+    // Special case for common ID relationships
+    if ((sourceColumn.toLowerCase().includes('id') || targetColumn.toLowerCase().includes('id')) && 
+        (isSourceNumeric || isTargetNumeric)) {
+      console.log('ID field to numeric type - compatible');
+      return true;
+    }
+
+    console.log('Types are incompatible');
+    return false;
+  }, [schema]);
+
+  // Identify potential foreign key columns if not explicitly marked
+  const identifyPotentialForeignKeys = useCallback((tableSchema) => {
+    if (!tableSchema || !tableSchema.columns) return tableSchema;
+
+    // Make a deep copy to avoid mutating the original schema
+    const updatedSchema = JSON.parse(JSON.stringify(tableSchema));
+
+    updatedSchema.columns = updatedSchema.columns.map(column => {
+      // Check if it's already marked as a foreign key
+      if (column.isForeignKey) {
+        return column;
+      }
+
+      // Common patterns for foreign keys
+      const name = column.name.toLowerCase();
+      const type = (column.type || '').toLowerCase();
+
+      // Check for common foreign key naming patterns
+      const isLikelyFK = 
+        name.endsWith('_id') || 
+        name.endsWith('id') && name !== 'id' || // Exclude primary ID columns
+        name.startsWith('fk_') || 
+        name.includes('foreign') ||
+        (type.includes('int') && name.includes('_'));
+
+      if (isLikelyFK) {
+        column.isForeignKey = true;
+        console.log(`Identified likely foreign key: ${column.name}`);
+      }
+
+      return column;
+    });
+
+    return updatedSchema;
+  }, []);
+
+  // Enhance schema with additional identified foreign keys
+  const enhancedSchema = useMemo(() => {
+    if (!schema) return null;
+
+    const result = {};
+    Object.entries(schema).forEach(([tableName, tableData]) => {
+      result[tableName] = identifyPotentialForeignKeys(tableData);
+    });
+
+    return result;
+  }, [schema, identifyPotentialForeignKeys]);
+
+  // Handle drag over for ReactFlow
+  const onDragOver = useCallback((event) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  // Get highlighted columns based on active source
+  const getHighlightedColumns = useCallback(() => {
+    if (!activeSourceInfo) return {};
+
+    const { sourceTable, sourceColumn } = activeSourceInfo;
+    const sourceType = getColumnType(schema, sourceTable, sourceColumn);
+    const highlighted = {};
+
+    console.log(`Finding compatible columns for source: ${sourceTable}.${sourceColumn} (${sourceType})`);
+
+    // Highlight columns in all tables
+    Object.keys(schema).forEach(tableName => {
+      // Don't highlight the source table
+      if (tableName === sourceTable) return;
+
+      const columns = schema[tableName].columns || [];
+
+      columns.forEach(column => {
+        const targetType = column.type;
+        const isCompatible = areDataTypesCompatible(
+          sourceTable, sourceColumn, 
+          tableName, column.name
+        );
+
+        const columnKey = `${tableName}__${column.name}`;
+        highlighted[columnKey] = isCompatible;
+        
+        if (isCompatible) {
+          console.log(`Compatible target found: ${tableName}.${column.name} (${targetType})`);
+        }
+      });
+    });
+
+    return highlighted;
+  }, [activeSourceInfo, schema, areDataTypesCompatible, getColumnType]);
+
+  // Handle column selection
+  const handleColumnSelect = useCallback((tableId, columnName, isSelected) => {
+    console.log(`Column ${columnName} in table ${tableId} ${isSelected ? 'selected' : 'deselected'}`);
+    
+    // Get column information from schema
+    const tableSchema = enhancedSchema && enhancedSchema[tableId];
+    const column = tableSchema?.columns.find(col => col.name === columnName);
+    
+    // Check if this is a primary or foreign key that should remain selected
+    const isPrimaryKey = column?.isPrimaryKey;
+    const isForeignKey = column?.isForeignKey || 
+                        columnName.toLowerCase().endsWith('_id') || 
+                        columnName.toLowerCase().startsWith('fk_') ||
+                        (columnName.toLowerCase().includes('id') && columnName.toLowerCase() !== 'id');
+    
+    // Don't allow deselection of primary or foreign keys
+    if (!isSelected && (isPrimaryKey || isForeignKey)) {
+      console.log(`Preventing deselection of key column: ${tableId}.${columnName}`);
+      return; // Exit early without changing selection
+    }
+
+    // Update the local state
+    setTableSelectedColumns(prev => {
+      const updated = { ...prev };
+
+      if (!updated[tableId]) {
+        updated[tableId] = [];
+      }
+
+      if (isSelected) {
+        // Add column if not already in the array
+        if (!updated[tableId].includes(columnName)) {
+          updated[tableId] = [...updated[tableId], columnName];
+        }
+      } else {
+        // Remove column
+        updated[tableId] = updated[tableId].filter(col => col !== columnName);
+
+        // Check if this removal affects any relationships
+        if (relationships && relationships.length > 0) {
+          const affectedRelationships = relationships.filter(rel => 
+            (rel.source_table === tableId && rel.source_column === columnName) ||
+            (rel.target_table === tableId && rel.target_column === columnName)
+          );
+
+          if (affectedRelationships.length > 0) {
+            console.log('Removing relationships due to column deselection:', affectedRelationships);
+
+            // Remove these relationships
+            const updatedRelationships = relationships.filter(rel => 
+              !(rel.source_table === tableId && rel.source_column === columnName) &&
+              !(rel.target_table === tableId && rel.target_column === columnName)
+            );
+
+            if (onRelationshipsChange) {
+              onRelationshipsChange(updatedRelationships);
+            }
+          }
+        }
+      }
+
+      if (onSelectedColumnsChange) {
+        onSelectedColumnsChange(updated);
+      }
+
+      return updated;
+    });
+
+    // Update the node data to reflect the column selection
+    setNodes(nds => 
+      nds.map(node => {
+        if (node.id === tableId) {
+          const updatedTableSelectedColumns = isSelected
+            ? [...(tableSelectedColumns[tableId] || []), columnName]
+            : (tableSelectedColumns[tableId] || []).filter(col => col !== columnName);
+
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              tableSelectedColumns: updatedTableSelectedColumns
+            }
+          };
+        }
+        return node;
+      })
+    );
+  }, [tableSelectedColumns, setNodes, relationships, onRelationshipsChange, onSelectedColumnsChange, enhancedSchema]);
+
+  // Delete a relationship
+  const handleDeleteRelationship = useCallback((edgeId, relationshipToDelete) => {
+    console.log(`Deleting relationship with edge ID: ${edgeId}`);
+
+    if (!relationshipToDelete) {
+      console.error("No relationship provided for deletion");
+      return;
+    }
+
+    console.log('Relationship to delete:', relationshipToDelete);
+
+    // Remove the edge
+    setEdges(edges => edges.filter(edge => edge.id !== edgeId));
+
+    // Remove the relationship from the parent component
+    if (onRelationshipsChange) {
+      const updatedRelationships = relationships.filter(rel => 
+        !(rel.source_table === relationshipToDelete.source_table && 
+          rel.source_column === relationshipToDelete.source_column && 
+          rel.target_table === relationshipToDelete.target_table && 
+          rel.target_column === relationshipToDelete.target_column)
+      );
+      
+      console.log('Updated relationships after deletion:', updatedRelationships);
+      onRelationshipsChange(updatedRelationships);
+
+      // Save to localStorage
+      try {
+        const storageKey = `visual-schema-relationships-${connectionId}`;
+        localStorage.setItem(storageKey, JSON.stringify(updatedRelationships));
+        console.log('Saved updated relationships to localStorage');
+      } catch (error) {
+        console.error('Error saving relationships to localStorage:', error);
+      }
+    }
+  }, [onRelationshipsChange, relationships, connectionId, setEdges]);
+
+  // Function to create edges from relationships
+  const createEdgesFromRelationships = useCallback(() => {
+    if (!relationships || !relationships.length) return [];
+
+    console.log('Creating edges from relationships:', relationships);
+
+    // Created edges
+    return relationships.map(relationship => {
+      const { source_table, source_column, target_table, target_column, relationship_type } = relationship;
+
+      // Create edge ID
+      const edgeId = createEdgeId(source_table, source_column, target_table, target_column);
+
+      // Source and target handles
+      const sourceHandle = `${source_table}__${source_column}`;
+      const targetHandle = `${target_table}__${target_column}`;
+
+      // Check if this is an AdSpend related edge
+      const isAdSpendEdge = source_column.includes('AdSpend') || 
+                           target_column.includes('AdSpend') ||
+                           isAdSpendTable(source_table) ||
+                           isAdSpendTable(target_table);
+
+      // Get column types for tooltips
+      const sourceType = getColumnType(schema, source_table, source_column) || 'unknown';
+      const targetType = getColumnType(schema, target_table, target_column) || 'unknown';
+      
+      console.log(`Creating edge: ${source_table}.${source_column} -> ${target_table}.${target_column}`);
+      console.log(`Edge types: ${sourceType} -> ${targetType}`);
+      console.log(`Edge is AdSpend: ${isAdSpendEdge}`);
+
+      // Create the edge
+      return {
+        id: edgeId,
+        source: source_table,
+        target: target_table,
+        sourceHandle,
+        targetHandle,
+        type: 'custom',
+        animated: isAdSpendEdge,
+        style: { stroke: isAdSpendEdge ? '#f44336' : '#1976d2', strokeWidth: 2 },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: isAdSpendEdge ? '#f44336' : '#1976d2'
+        },
+        data: {
+          relationship,
+          relationshipType: relationship_type,
+          sourceType,
+          targetType,
+          onDelete: () => handleDeleteRelationship(edgeId, relationship)
+        },
+        // Add label for the edge showing the relationship type
+        label: relationship_type || 'relationship'
+      };
+    });
+  }, [relationships, createEdgeId, isAdSpendTable, handleDeleteRelationship, schema, getColumnType]);
+
+  // Create nodes from schema with proper positions
+  const createNodesFromSchema = useCallback(() => {
+    if (!enhancedSchema) return [];
+
+    console.log('Creating nodes from enhanced schema:', enhancedSchema);
+    console.log('Selected tables:', selectedTables);
+    const savedPositions = loadPositionsFromStorage();
+    console.log('Loaded saved positions:', savedPositions);
+
+    // Start with staggered default positions
+    let xPos = 50;
+    let yPos = 50;
+
+    // Filter schema to only include selectedTables
+    return Object.entries(enhancedSchema)
+      .filter(([tableName]) => selectedTables.includes(tableName))
+      .map(([tableName, tableInfo], index) => {
+      // Use saved position or calculate new one
+      let position = savedPositions[tableName] || { x: xPos, y: yPos };
+
+      // Ensure position has valid x and y values
+      if (!position || typeof position.x !== 'number' || typeof position.y !== 'number') {
+        position = { x: xPos, y: yPos };
+      }
+
+      // If this is a new position, adjust the next default position
+      if (!savedPositions[tableName]) {
+        xPos += 300;
+        if (index % 3 === 2) {
+          xPos = 50;
+          yPos += 350;
+        }
+      }
+
+      console.log(`Node ${tableName} position:`, position);
+      
+      // Make sure we have the enhanced columns
+      const enhancedColumns = tableInfo.columns || [];
+      
+      // Log columns with keys for debugging
+      const primaryKeys = enhancedColumns.filter(col => col.isPrimaryKey).map(col => col.name);
+      const foreignKeys = enhancedColumns.filter(col => col.isForeignKey || 
+        col.name.toLowerCase().endsWith('_id') || 
+        (col.name.toLowerCase().includes('id') && col.name.toLowerCase() !== 'id')).map(col => col.name);
+      
+      console.log(`Table ${tableName} primary keys:`, primaryKeys);
+      console.log(`Table ${tableName} foreign keys:`, foreignKeys);
+
+      return {
+        id: tableName,
+        type: 'tableNode',
+        position: position,
+        draggable: true, // Explicitly enable dragging
+        dragHandle: '.draggable-handle',
+        data: {
+          label: tableName,
+          columns: enhancedColumns,
+          onColumnSelect: handleColumnSelect,
+          tableSelectedColumns: tableSelectedColumns[tableName] || [],
+          activeSourceInfo: activeSourceInfo,
+          highlightedColumns: getHighlightedColumns()
+        }
+      };
+    });
+  }, [
+    enhancedSchema, 
+    loadPositionsFromStorage, 
+    tableSelectedColumns, 
+    handleColumnSelect,
+    activeSourceInfo,
+    getHighlightedColumns,
+    selectedTables
+  ]);
+
+  // Ensure all primary and foreign keys are selected
+  const ensureKeysAreSelected = useCallback(() => {
+    if (!enhancedSchema || !selectedTables || selectedTables.length === 0) return;
+    
+    let updatedTableSelectedColumns = { ...tableSelectedColumns };
+    let hasChanges = false;
+    
+    console.log('Checking for keys to auto-select in schema:', enhancedSchema);
+    
+    // For each selected table, ensure all keys are selected
+    selectedTables.forEach(tableName => {
+      if (enhancedSchema[tableName] && enhancedSchema[tableName].columns) {
+        // Initialize the selected columns array if it doesn't exist
+        if (!updatedTableSelectedColumns[tableName]) {
+          updatedTableSelectedColumns[tableName] = [];
+        }
+        
+        enhancedSchema[tableName].columns.forEach(column => {
+          // Check if this is likely a foreign key based on name
+          const isLikelyForeignKey = 
+            column.name.toLowerCase().endsWith('_id') || 
+            column.name.toLowerCase().startsWith('fk_') ||
+            (column.name.toLowerCase().includes('id') && 
+             column.name.toLowerCase() !== 'id' && 
+             !column.isPrimaryKey);
+          
+          // Auto-select primary keys and foreign keys (both explicit and likely)
+          if ((column.isPrimaryKey || column.isForeignKey || isLikelyForeignKey) && 
+              !updatedTableSelectedColumns[tableName].includes(column.name)) {
+            console.log(`Auto-selecting key column: ${tableName}.${column.name}`);
+            updatedTableSelectedColumns[tableName].push(column.name);
+            hasChanges = true;
+          }
+        });
+      }
+    });
+    
+    if (hasChanges) {
+      console.log('Auto-selecting keys:', updatedTableSelectedColumns);
+      setTableSelectedColumns(updatedTableSelectedColumns);
+      if (onSelectedColumnsChange) {
+        onSelectedColumnsChange(updatedTableSelectedColumns);
+      }
+      
+      // Also update the nodes to reflect the changes
+      setNodes(nodes => 
+        nodes.map(node => {
+          if (updatedTableSelectedColumns[node.id]) {
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                tableSelectedColumns: updatedTableSelectedColumns[node.id]
+              }
+            };
+          }
+          return node;
+        })
+      );
+    }
+  }, [enhancedSchema, selectedTables, tableSelectedColumns, onSelectedColumnsChange, setNodes]);
+
+  // Handle connect when creating a relationship
+  const onConnect = useCallback((params) => {
+    console.log('Connection attempt:', params);
+
+    if (!params.source || !params.target || !params.sourceHandle || !params.targetHandle) {
+      console.error('Invalid connection parameters');
+      return;
+    }
+
+    // Extract table and column info from handles
+    const sourceHandleParts = params.sourceHandle.split('__');
+    const targetHandleParts = params.targetHandle.split('__');
+
+    if (sourceHandleParts.length !== 2 || targetHandleParts.length !== 2) {
+      console.error('Invalid handle format');
+      return;
+    }
+
+    const sourceTable = params.source;
+    const sourceColumn = sourceHandleParts[1];
+    const targetTable = params.target;
+    const targetColumn = targetHandleParts[1];
+
+    console.log('Connecting:', {
+      sourceTable, sourceColumn, targetTable, targetColumn
+    });
+
+    // Get column types (just the base types without size/precision)
+    const sourceTypeRaw = getColumnType(schema, sourceTable, sourceColumn) || '';
+    const targetTypeRaw = getColumnType(schema, targetTable, targetColumn) || '';
+
+    // Clean up types for display by removing size info and collations
+    const sourceType = sourceTypeRaw.replace(/\(.*?\)/g, '').replace(/\s+COLLATE\s+.*/i, '');
+    const targetType = targetTypeRaw.replace(/\(.*?\)/g, '').replace(/\s+COLLATE\s+.*/i, '');
+
+    console.log('Clean Types:', { sourceType, targetType });
+
+    // Special case for INTEGER fields - always allow connections between them
+    const isIntegerConnection = 
+      sourceTypeRaw.toUpperCase().includes('INTEGER') && 
+      targetTypeRaw.toUpperCase().includes('INTEGER');
+      
+    // Special case for ID fields - always allow connections if one side has 'id' in the name
+    const isIdField = 
+      sourceColumn.toLowerCase().includes('id') || 
+      targetColumn.toLowerCase().includes('id');
+
+    // Check data type compatibility
+    const isCompatible = isIntegerConnection || 
+                        isIdField || 
+                        areDataTypesCompatible(sourceTypeRaw, targetTypeRaw);
+                        
+    if (!isCompatible) {
+      console.error('Incompatible data types:', sourceTypeRaw, targetTypeRaw);
+      alert(`Cannot connect: incompatible data types (${sourceType} ↔ ${targetType})`);
+      return;
+    }
+    
+    console.log('Types are compatible, allowing connection');
+
+    // Create relationship
+    const relationship = {
+      source_table: sourceTable,
+      source_column: sourceColumn,
+      target_table: targetTable,
+      target_column: targetColumn,
+      relationship_type: 'one-to-many'  // Default relationship type
+    };
+
+    // Check if relationship already exists (in either direction)
+    const isDuplicate = relationships.some(rel => 
+      (rel.source_table === sourceTable && 
+       rel.source_column === sourceColumn && 
+       rel.target_table === targetTable && 
+       rel.target_column === targetColumn) || 
+      (rel.source_table === targetTable && 
+       rel.source_column === targetColumn && 
+       rel.target_table === sourceTable && 
+       rel.target_column === sourceColumn)
+    );
+
+    if (isDuplicate) {
+      console.warn('Relationship already exists');
+      alert('This relationship already exists');
+      return;
+    }
+
+    // Add the relationship
+    const updatedRelationships = [...relationships, relationship];
+
+    console.log('Adding relationship:', relationship);
+    console.log('Updated relationships:', updatedRelationships);
+
+    if (onRelationshipsChange) {
+      onRelationshipsChange(updatedRelationships);
+
+      // Save to localStorage if we have a connection ID
+      try {
+        if (connectionId) {
+          const storageKey = `visual-schema-relationships-${connectionId}`;
+          localStorage.setItem(storageKey, JSON.stringify(updatedRelationships));
+        }
+      } catch (error) {
+        console.error('Error saving relationships to localStorage:', error);
+      }
+    }
+
+    // Reset active source
+    setActiveSourceInfo(null);
+    setHighlightedColumns({});
+  }, [
+    relationships, 
+    onRelationshipsChange,
+    areDataTypesCompatible, 
+    schema,
+    getColumnType,
+    connectionId
+  ]);
+
+  // Handle connection start
+  const onConnectStart = useCallback((event, { nodeId, handleId }) => {
+    if (!nodeId || !handleId) return;
+
+    console.log('Connect start:', { nodeId, handleId });
+
+    // Extract table and column from handle
+    const parts = handleId.split('__');
+    if (parts.length !== 2) return;
+
+    const sourceTable = nodeId;
+    const sourceColumn = parts[1];
+
+    // Set active source
+    setActiveSourceInfo({
+      sourceTable,
+      sourceColumn
+    });
+
+    // Highlight compatible columns
+    setHighlightedColumns(getHighlightedColumns());
+  }, [getHighlightedColumns]);
+
+  // Handle connection end
+  const onConnectEnd = useCallback(() => {
+    // Reset highlight states when connection ends
+    setActiveSourceInfo(null);
+    setHighlightedColumns({});
+  }, []);
+
+  // Initialize relationship columns
+  const ensureRelationshipColumnsSelected = useCallback(() => {
+    if (!relationships || !relationships.length) return;
+
+    const columnsToEnsure = {};
+
+    // Collect all columns used in relationships
+    relationships.forEach(rel => {
+      const { source_table, source_column, target_table, target_column } = rel;
+
+      if (!columnsToEnsure[source_table]) columnsToEnsure[source_table] = new Set();
+      if (!columnsToEnsure[target_table]) columnsToEnsure[target_table] = new Set();
+
+      columnsToEnsure[source_table].add(source_column);
+      columnsToEnsure[target_table].add(target_column);
+    });
+
+    // Ensure all these columns are in tableSelectedColumns
+    let updatedTableSelectedColumns = { ...tableSelectedColumns };
+    let hasChanges = false;
+
+    Object.entries(columnsToEnsure).forEach(([table, columns]) => {
+      if (!updatedTableSelectedColumns[table]) {
+        updatedTableSelectedColumns[table] = [];
+      }
+
+      columns.forEach(column => {
+        if (!updatedTableSelectedColumns[table].includes(column)) {
+          updatedTableSelectedColumns[table].push(column);
+          hasChanges = true;
+        }
+      });
+    });
+
+    if (hasChanges) {
+      setTableSelectedColumns(updatedTableSelectedColumns);
+      if (onSelectedColumnsChange) {
+        onSelectedColumnsChange(updatedTableSelectedColumns);
+      }
+    }
+  }, [relationships, tableSelectedColumns, onSelectedColumnsChange]);
+
+  // Initialize on load
+  useEffect(() => {
+    console.log('INITIALIZING WITH SCHEMA:', schema);
+    console.log('SELECTED COLUMNS:', selectedColumns);
+    console.log('ENHANCED SCHEMA:', enhancedSchema);
+
+    // Create a deep copy of the selectedColumns
+    let updatedTableSelectedColumns = JSON.parse(JSON.stringify(selectedColumns || {}));
+    let hasChanges = false;
+
+    if (enhancedSchema && selectedTables) {
+      // For each selected table, make sure its primary and foreign keys are selected
+      selectedTables.forEach(tableName => {
+        if (enhancedSchema[tableName] && enhancedSchema[tableName].columns) {
+          // Initialize the selectedColumns array if needed
+          if (!updatedTableSelectedColumns[tableName]) {
+            updatedTableSelectedColumns[tableName] = [];
+          }
+
+          // Find all primary and foreign key columns
+          enhancedSchema[tableName].columns.forEach(column => {
+            const { name, isPrimaryKey, isForeignKey } = column;
+
+            // Check if it's a primary key
+            if (isPrimaryKey && !updatedTableSelectedColumns[tableName].includes(name)) {
+              console.log(`Auto-selecting primary key: ${tableName}.${name}`);
+              updatedTableSelectedColumns[tableName].push(name);
+              hasChanges = true;
+            }
+
+            // Check if it's explicitly marked as a foreign key or looks like one
+            const isLikelyFK = isForeignKey || 
+                              name.toLowerCase().endsWith('_id') || 
+                              name.toLowerCase().startsWith('fk_') ||
+                              (name.toLowerCase().includes('id') && name.toLowerCase() !== 'id');
+
+            if (isLikelyFK && !updatedTableSelectedColumns[tableName].includes(name)) {
+              console.log(`Auto-selecting foreign key: ${tableName}.${name}`);
+              updatedTableSelectedColumns[tableName].push(name);
+              hasChanges = true;
+            }
+          });
+        }
+      });
+    }
+
+    // Also ensure all relationship columns are selected
+    if (relationships && relationships.length > 0) {
+      console.log('Ensuring all relationship columns are selected:', relationships);
+      
+      // Create a map to store columns to ensure are selected
+      const columnsToEnsure = {};
+
+      // Process each relationship to find columns
+      relationships.forEach(relationship => {
+        const { source_table, source_column, target_table, target_column } = relationship;
+
+        if (!columnsToEnsure[source_table]) columnsToEnsure[source_table] = new Set();
+        if (!columnsToEnsure[target_table]) columnsToEnsure[target_table] = new Set();
+
+        columnsToEnsure[source_table].add(source_column);
+        columnsToEnsure[target_table].add(target_column);
+      });
+
+      // Ensure all these columns are selected
+      Object.entries(columnsToEnsure).forEach(([table, columns]) => {
+        if (!updatedTableSelectedColumns[table]) {
+          updatedTableSelectedColumns[table] = [];
+        }
+
+        columns.forEach(column => {
+          if (!updatedTableSelectedColumns[table].includes(column)) {
+            console.log(`Auto-selecting relationship column: ${table}.${column}`);
+            updatedTableSelectedColumns[table].push(column);
+            hasChanges = true;
+          }
+        });
+      });
+    }
+
+    // Only update if changes were made
+    if (hasChanges) {
+      console.log('AUTO-SELECTED COLUMNS:', updatedTableSelectedColumns);
+      setTableSelectedColumns(updatedTableSelectedColumns);
+      if (onSelectedColumnsChange) {
+        onSelectedColumnsChange(updatedTableSelectedColumns);
+      }
+    } else {
+      // At least make sure we have the selected columns in our local state
+      setTableSelectedColumns(selectedColumns || {});
+    }
+  }, [enhancedSchema, schema, selectedTables, relationships, selectedColumns, onSelectedColumnsChange]);
+
+  // Update nodes when tables or columns change
+  useEffect(() => {
+    if (!selectedTables || !selectedTables.length) {
+      setNodes([]);
+      return;
+    }
+
+    const newNodes = createNodesFromSchema();
+    setNodes(newNodes);
+  }, [selectedTables, schema, createNodesFromSchema, tableSelectedColumns, setNodes]);
+
+  // Update edges when relationships change
+  useEffect(() => {
+    const newEdges = createEdgesFromRelationships();
+    setEdges(newEdges);
+  }, [relationships, createEdgesFromRelationships, setEdges]);
+
+  // Initialize relationships from localStorage if not provided
+  useEffect(() => {
+    if ((!relationships || relationships.length === 0) && connectionId) {
+      const savedRelationships = loadRelationshipsFromStorage();
+      if (savedRelationships && savedRelationships.length > 0 && onRelationshipsChange) {
+        console.log("Restoring relationships from localStorage:", savedRelationships);
+        onRelationshipsChange(savedRelationships);
+      }
+    }
+  }, [connectionId, relationships, onRelationshipsChange, loadRelationshipsFromStorage]);
+
+  // Handle node changes (including position)
+  const handleNodesChange = useCallback((changes) => {
+    // Apply the changes to nodes
+    onNodesChange(changes);
+
+    // After changes, save positions
+    setNodes(nds => {
+      savePositionsToStorage(nds);
+      return nds;
+    });
+  }, [onNodesChange, savePositionsToStorage, setNodes]);
+
+  // Define node and edge types
+  const nodeTypes = useMemo(() => ({
+    tableNode: TableNode,
+  }), []);
+
+  const edgeTypes = useMemo(() => ({
+    custom: CustomEdge,
+  }), []);
+
+  return (
+    <>
+      <SchemaContainer ref={reactFlowWrapper}>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={handleNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onConnectStart={onConnectStart}
+          onConnectEnd={onConnectEnd}
+          fitView
+          fitViewOptions={{ 
+            padding: 0.2, 
+            includeHiddenNodes: false 
+          }}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          onInit={(instance) => {
+            console.log("ReactFlow instance initialized:", instance);
+            setReactFlowInstance(instance);
+
+            // Load saved positions after initialization
+            const savedPositions = loadPositionsFromStorage();
+            if (savedPositions && Object.keys(savedPositions).length > 0) {
+              console.log("Applying saved positions to nodes");
+
+              // Update node positions from saved positions
+              setNodes(nds => 
+                nds.map(node => {
+                  if (savedPositions[node.id]) {
+                    // Apply the saved position
+                    node.position = savedPositions[node.id];
+                  }
+                  return node;
+                })
+              );
+            }
+          }}
+          onDragOver={onDragOver}
+          snapToGrid={true}
+          snapGrid={[15, 15]}
+          connectionLineType={ConnectionLineType.Bezier}
+          connectionLineStyle={{ stroke: '#1976d2', strokeWidth: 2 }}
+          defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+        >
+          <Background color="#f5f5f5" gap={16} />
+          <Controls />
+
+          <Box sx={{ position: 'absolute', bottom: 10, left: 10, zIndex: 5 }}>
+            <Typography variant="body2" color="text.secondary">
+              Drag between columns to create relationships
+            </Typography>
+          </Box>
+        </ReactFlow>
+      </SchemaContainer>
+    </>
+  );
+};
+
+// Wrapper component to provide ReactFlow context
+const VisualSchemaDesignerWithProvider = (props) => {
+  return (
+    <ReactFlowProvider>
+      <VisualSchemaDesigner {...props} />
+    </ReactFlowProvider>
+  );
+};
+
+export default VisualSchemaDesignerWithProvider;
