@@ -80,6 +80,7 @@ const ConnectionDetails = ({ connectionData, onChange, isEdit = false, onTestCon
             <MenuItem value="mysql">MySQL</MenuItem>
             <MenuItem value="postgresql">PostgreSQL</MenuItem>
             <MenuItem value="sqlite">SQLite</MenuItem>
+            <MenuItem value="mongodb">MongoDB</MenuItem>
           </TextField>
         </Grid>
         
@@ -137,7 +138,6 @@ const ConnectionDetails = ({ connectionData, onChange, isEdit = false, onTestCon
             margin="normal"
             value={connectionData.username}
             onChange={handleChange('username')}
-            required
             placeholder="Database username"
             InputProps={{
               endAdornment: (
@@ -160,7 +160,7 @@ const ConnectionDetails = ({ connectionData, onChange, isEdit = false, onTestCon
             margin="normal"
             value={connectionData.password}
             onChange={handleChange('password')}
-            required={!isEdit}
+            // required={!isEdit}
             type="password"
             placeholder={isEdit ? "Leave blank to keep current password" : "Database password"}
             InputProps={{

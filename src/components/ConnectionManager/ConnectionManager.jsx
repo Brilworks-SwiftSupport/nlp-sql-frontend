@@ -293,12 +293,12 @@ const ConnectionManager = ({ onClose, connectionToEdit = null }) => {
       const response = await connectionAPI.testConnection(connectionTestData);
       
       if (response.status === 'success') {
-        setStatus({ 
-          loading: false, 
-          error: '', 
-          success: 'Connection test successful! Click "Connect & Configure" to proceed.',
-          connectionTested: true 
-        });
+          setStatus({ 
+            loading: false, 
+            error: '', 
+            success: 'Connection test successful! Click "Connect & Configure" to proceed.',
+            connectionTested: true 
+          });
         
         // We no longer automatically create the connection here
         // Instead, we wait for the user to click the Connect & Configure button
@@ -597,11 +597,11 @@ const ConnectionManager = ({ onClose, connectionToEdit = null }) => {
       errors.port = 'Port must be a number';
     }
     
-    if (!connectionData.username) {
+    if (!connectionData.username && !connectionData.host?.toLowerCase().includes('localhost')) {
       errors.username = 'Username is required';
     }
-    
-    if (!connectionData.password && !connectionToEdit) {
+
+    if (!connectionData.password && !connectionToEdit && !connectionData.host?.toLowerCase().includes('localhost')) {
       errors.password = 'Password is required';
     }
     
@@ -642,11 +642,11 @@ const ConnectionManager = ({ onClose, connectionToEdit = null }) => {
     }
     
     // Check if relationships are defined (only if multiple tables are selected)
-    if (connectionData.selected_tables && connectionData.selected_tables.length > 1) {
-      if (!areAllTablesConnected()) {
-        errors.relationships = 'All tables must have at least one relationship defined';
-      }
-    }
+    // if (connectionData.selected_tables && connectionData.selected_tables.length > 1) {
+    //   if (!areAllTablesConnected()) {
+    //     errors.relationships = 'All tables must have at least one relationship defined';
+    //   }
+    // }
     
     return errors;
   };

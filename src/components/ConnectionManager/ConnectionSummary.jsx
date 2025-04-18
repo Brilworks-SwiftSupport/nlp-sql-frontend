@@ -100,9 +100,9 @@ const ConnectionSummary = ({
       missing.push('No columns selected');
     }
     
-    if (!areRelationshipsDefined()) {
-      missing.push('Not all tables have defined relationships');
-    }
+    // if (!areRelationshipsDefined()) {
+    //   missing.push('Not all tables have defined relationships');
+    // }
     
     return missing;
   };
@@ -354,7 +354,7 @@ const ConnectionSummary = ({
                 </TableContainer>
               ) : (
                 <Typography color="error" sx={{ py: 1 }}>
-                  No relationships defined. Define at least one relationship between each of your selected tables.
+                  No relationships defined.
                 </Typography>
               )}
             </CardContent>

@@ -186,12 +186,12 @@ const ConnectionForm = ({ onSuccess }) => {
       }
     } else if (activeStep === 3) {
       // Define Relationships step - validate relationships
-      if (connectionData.selected_tables.length > 1 && !areAllTablesConnected()) {
-        setValidationErrors({ relationships: 'All tables must have at least one relationship defined' });
-        canProceed = false;
-      } else {
+      // if (connectionData.selected_tables.length > 1 && !areAllTablesConnected()) {
+      //   setValidationErrors({ relationships: 'All tables must have at least one relationship defined' });
+      //   canProceed = false;
+      // } else {
         setValidationErrors({});
-      }
+      // }
     }
     
     if (canProceed) {
@@ -393,11 +393,11 @@ const ConnectionForm = ({ onSuccess }) => {
     }
     
     // Check if relationships are defined (only if multiple tables are selected)
-    if (connectionData.selected_tables && connectionData.selected_tables.length > 1) {
-      if (!areAllTablesConnected()) {
-        errors.relationships = 'All tables must have at least one relationship defined';
-      }
-    }
+    // if (connectionData.selected_tables && connectionData.selected_tables.length > 1) {
+    //   if (!areAllTablesConnected()) {
+    //     errors.relationships = 'All tables must have at least one relationship defined';
+    //   }
+    // }
     
     return errors;
   };
