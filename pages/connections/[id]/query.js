@@ -49,18 +49,18 @@ const QueryPage = () => {
         }
         
         // Check if schema exists for this connection by trying to get tables
-        try {
-          const tablesResponse = await connectionAPI.getTables(id);
-          if (tablesResponse.status === 'success') {
-            setTables(tablesResponse.tables);
-            // Let's assume schema exists if we can get tables
-            setHasStoredSchema(true);
-          }
-        } catch (err) {
-          // If we can't get tables, we might need to store schema first
-          setHasStoredSchema(false);
-          setShowSchemaSelector(true);
-        }
+        // try {
+        //   const tablesResponse = await connectionAPI.getTables(id);
+        //   if (tablesResponse.status === 'success') {
+        //     setTables(tablesResponse.tables);
+        //     // Let's assume schema exists if we can get tables
+        //     setHasStoredSchema(true);
+        //   }
+        // } catch (err) {
+        //   // If we can't get tables, we might need to store schema first
+        //   setHasStoredSchema(false);
+        //   setShowSchemaSelector(true);
+        // }
         
         // Get recent queries
         try {
@@ -208,14 +208,14 @@ const QueryPage = () => {
                 </Button>
               </Link>
               
-              {hasStoredSchema && !showSchemaSelector && (
+              {/* {hasStoredSchema && !showSchemaSelector && (
                 <Button
                   variant="outline"
                   onClick={handleShowSchemaSelector}
                 >
                   Change Tables
                 </Button>
-              )}
+              )} */}
             </div>
           </div>
         </div>
@@ -230,7 +230,7 @@ const QueryPage = () => {
           )}
           
           {/* Table Schema Selector */}
-          {showSchemaSelector && (
+          {/* {showSchemaSelector && (
             <div className="mt-6">
               <TableSelector
                 tables={tables}
@@ -243,10 +243,10 @@ const QueryPage = () => {
                 submitButtonText={isSchemaStoring ? "Storing Schema..." : "Store Selected Tables Schema"}
               />
             </div>
-          )}
+          )} */}
           
           {/* Query Form */}
-          {(hasStoredSchema && !showSchemaSelector) && (
+          { (
             <div className="mt-6">
               <QueryForm
                 connectionId={id}
@@ -268,7 +268,7 @@ const QueryPage = () => {
           )}
           
           {/* Schema Required Notice */}
-          {(!hasStoredSchema && !showSchemaSelector) && (
+          {/* {(!hasStoredSchema && !showSchemaSelector) && (
             <div className="mt-6 bg-white shadow overflow-hidden sm:rounded-lg p-6">
               <h3 className="text-lg leading-6 font-medium text-gray-900">Table Schema Required</h3>
               <div className="mt-2 max-w-xl text-sm text-gray-500">
@@ -286,7 +286,7 @@ const QueryPage = () => {
                 </Button>
               </div>
             </div>
-          )}
+          )} */}
         </div>
       </div>
     </Layout>
