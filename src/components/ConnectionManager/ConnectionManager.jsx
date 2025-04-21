@@ -60,6 +60,15 @@ const ConnectionManager = ({ onClose, connectionToEdit = null }) => {
     password: '',
     database: connectionToEdit?.database || '',
     db_schema: connectionToEdit?.db_schema || '',
+    // SSH Configuration
+    ssh_enabled: connectionToEdit?.ssh_enabled || false,
+    ssh_host: connectionToEdit?.ssh_host || '',
+    ssh_port: connectionToEdit?.ssh_port || '22',
+    ssh_username: connectionToEdit?.ssh_username || '',
+    ssh_auth_method: connectionToEdit?.ssh_auth_method || 'password',
+    ssh_password: '',  // Don't populate from connectionToEdit for security
+    ssh_private_key: '', // Don't populate from connectionToEdit for security
+    // Schema related fields
     selected_tables: connectionToEdit?.selected_tables || [],
     selected_columns: connectionToEdit?.selected_columns || {},
     relationships: connectionToEdit?.relationships || []
@@ -272,14 +281,11 @@ const ConnectionManager = ({ onClose, connectionToEdit = null }) => {
       return;
     }
     
-    setStatus({ loading: true, error: '', success: '', connectionTested: false, connectionId: null });
+    setStatus({ loading: true, error: '', success: '', connectionTested: false });
     setValidationErrors({});
     
     try {
-      // Extract only the connection details needed for testing, excluding schema-related fields
       const connectionTestData = {
-        name: connectionData.name,
-        description: connectionData.description,
         db_type: connectionData.db_type,
         host: connectionData.host,
         port: connectionData.port,
@@ -287,21 +293,30 @@ const ConnectionManager = ({ onClose, connectionToEdit = null }) => {
         password: connectionData.password,
         database: connectionData.database,
         db_schema: connectionData.db_schema,
+        // Add SSH configuration for testing
+        ssh_enabled: connectionData.ssh_enabled,
+        ...(connectionData.ssh_enabled && {
+          ssh_host: connectionData.ssh_host,
+          ssh_port: connectionData.ssh_port,
+          ssh_username: connectionData.ssh_username,
+          ssh_auth_method: connectionData.ssh_auth_method,
+          ...(connectionData.ssh_auth_method === 'password' 
+            ? { ssh_password: connectionData.ssh_password }
+            : { ssh_private_key: connectionData.ssh_private_key }
+          )
+        }),
         test_only: true
       };
 
       const response = await connectionAPI.testConnection(connectionTestData);
       
       if (response.status === 'success') {
-          setStatus({ 
-            loading: false, 
-            error: '', 
-            success: 'Connection test successful! Click "Connect & Configure" to proceed.',
-            connectionTested: true 
-          });
-        
-        // We no longer automatically create the connection here
-        // Instead, we wait for the user to click the Connect & Configure button
+        setStatus({ 
+          loading: false, 
+          error: '', 
+          success: 'Connection test successful! Click "Connect & Configure" to proceed.',
+          connectionTested: true 
+        });
       } else {
         setStatus({ 
           loading: false, 
@@ -340,7 +355,6 @@ const ConnectionManager = ({ onClose, connectionToEdit = null }) => {
     setStatus({ ...status, loading: true, error: '', success: 'Creating connection...' });
     
     try {
-      // Create the actual connection in the database
       const createResponse = await connectionAPI.create({
         name: connectionData.name,
         description: connectionData.description,
@@ -351,6 +365,18 @@ const ConnectionManager = ({ onClose, connectionToEdit = null }) => {
         password: connectionData.password,
         database: connectionData.database,
         db_schema: connectionData.db_schema,
+        // SSH Configuration
+        ssh_enabled: connectionData.ssh_enabled,
+        ...(connectionData.ssh_enabled && {
+          ssh_host: connectionData.ssh_host,
+          ssh_port: connectionData.ssh_port,
+          ssh_username: connectionData.ssh_username,
+          ssh_auth_method: connectionData.ssh_auth_method,
+          ...(connectionData.ssh_auth_method === 'password' 
+            ? { ssh_password: connectionData.ssh_password }
+            : { ssh_private_key: connectionData.ssh_private_key }
+          )
+        }),
         // Initialize with empty selections
         selected_tables: [],
         selected_columns: {},
@@ -612,6 +638,25 @@ const ConnectionManager = ({ onClose, connectionToEdit = null }) => {
     // SQL Server requires a schema
     if (connectionData.db_type === 'sqlserver' && !connectionData.db_schema) {
       errors.db_schema = 'Schema is required for SQL Server (usually "dbo")';
+    }
+
+    // Validate SSH configuration if enabled
+    if (connectionData.ssh_enabled) {
+      if (!connectionData.ssh_host) {
+        errors.ssh_host = 'SSH host is required';
+      }
+      if (!connectionData.ssh_port) {
+        errors.ssh_port = 'SSH port is required';
+      }
+      if (!connectionData.ssh_username) {
+        errors.ssh_username = 'SSH username is required';
+      }
+      if (connectionData.ssh_auth_method === 'password' && !connectionData.ssh_password && !connectionToEdit) {
+        errors.ssh_password = 'SSH password is required';
+      }
+      if (connectionData.ssh_auth_method === 'private_key' && !connectionData.ssh_private_key && !connectionToEdit) {
+        errors.ssh_private_key = 'SSH private key is required';
+      }
     }
     
     return errors;
