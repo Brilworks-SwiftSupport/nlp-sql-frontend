@@ -420,7 +420,7 @@ const ConnectionDetails = ({ connectionData, onChange, isEdit = false, onTestCon
             margin="normal"
             value={connectionData.description}
             onChange={handleChange('description')}
-            placeholder="Optional description of this connection"
+            placeholder="JSON description of this connection"
             multiline
             rows={2}
           />
