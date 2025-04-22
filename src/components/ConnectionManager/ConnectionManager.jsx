@@ -232,21 +232,7 @@ const ConnectionManager = ({ onClose, connectionToEdit = null }) => {
       // Keep existing data to prevent duplicates when saving
       
       // Store the schema in the database
-      const storeResponse = await fetch(`${apiUrl}/connections/${connectionId}/schema`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          tables: Object.values(schemaData),
-          relationships: tablesData.relationships
-        })
-      });
-
-      if (!storeResponse.ok) {
-        throw new Error('Failed to store schema');
-      }
+      
 
       // Display tables data
       setSchema(schemaData);
