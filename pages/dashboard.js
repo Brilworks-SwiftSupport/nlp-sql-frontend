@@ -4,8 +4,8 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
 import Layout from '../components/layout/Layout';
+import ConnectionCard from '../components/connections/ConnectionCard';
 import { connectionAPI, queryAPI } from '../lib/api';
-import { isConnectionReady, getConnectionCompletionSuggestion } from '../lib/connectionUtils';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -101,69 +101,29 @@ export default function Dashboard() {
             </div>
             
             <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {connections.map((connection) => (
-                <div
-                  key={connection.id}
-                  className="bg-white overflow-hidden shadow rounded-lg"
-                >
-                  <div className="px-4 py-5 sm:p-6">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 bg-blue-500 rounded-md p-3">
-                        <svg className="h-6 w-6 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
-                        </svg>
-                      </div>
-                      <div className="ml-5 w-0 flex-1">
-                        <dl>
-                          <dt className="text-sm font-medium text-gray-500 truncate">
-                            {connection.name}
-                          </dt>
-                          <dd>
-                            <div className="text-lg font-medium text-gray-900">
-                              {connection.db_type}
-                            </div>
-                          </dd>
-                          {!isConnectionReady(connection) && (
-                            <div className="mt-2 flex items-center text-sm text-yellow-600">
-                              <svg className="flex-shrink-0 mr-1.5 h-5 w-5 text-yellow-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                              </svg>
-                              Setup incomplete
-                            </div>
-                          )}
-                        </dl>
+              {isLoading ? (
+                // Loading skeleton
+                [...Array(3)].map((_, i) => (
+                  <div key={i} className="bg-white shadow rounded-lg p-6">
+                    <div className="animate-pulse flex space-x-4">
+                      <div className="rounded-full bg-blue-400 h-12 w-12"></div>
+                      <div className="flex-1 space-y-4 py-1">
+                        <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                        <div className="space-y-2">
+                          <div className="h-4 bg-gray-200 rounded"></div>
+                          <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                  <div className="bg-gray-50 px-4 py-4 sm:px-6">
-                    <div className="text-sm flex justify-between">
-                      <Link
-                        href={`/connections/${connection.id}`}
-                        className="font-medium text-blue-600 hover:text-blue-500"
-                      >
-                        View details
-                      </Link>
-                      
-                      {!isConnectionReady(connection) && (
-                        <button
-                          onClick={() => router.push(`/connections/${connection.id}/edit`)}
-                          className="font-medium text-orange-600 hover:text-orange-500"
-                        >
-                          Complete setup
-                        </button>
-                      )}
-                    </div>
-                    
-                    {!isConnectionReady(connection) && (
-                      <p className="mt-2 text-xs text-gray-500">
-                        {getConnectionCompletionSuggestion(connection)}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))}
+                ))
+              ) : (
+                connections.map((connection) => (
+                  <ConnectionCard key={connection.id} connection={connection} />
+                ))
+              )}
               
-              {connections.length === 0 && (
+              {!isLoading && connections.length === 0 && (
                 <div className="col-span-full bg-white overflow-hidden shadow rounded-lg">
                   <div className="px-4 py-5 sm:p-6 text-center">
                     <p className="text-gray-500">No database connections found.</p>
@@ -205,7 +165,7 @@ export default function Dashboard() {
                             <svg className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                               <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                             </svg>
-                            Connection: {query.connection_id}
+                            Connection ID: {query.connection_id}
                           </p>
                         </div>
                         <div className="flex items-center text-sm text-gray-500">
