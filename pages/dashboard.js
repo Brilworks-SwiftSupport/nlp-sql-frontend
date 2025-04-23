@@ -39,7 +39,7 @@ export default function Dashboard() {
         // Fetch recent queries
         const queriesResponse = await queryAPI.getHistory();
         if (queriesResponse.status === 'success') {
-          setRecentQueries(queriesResponse.queries.slice(0, 5)); // Get only the 5 most recent
+          setRecentQueries(queriesResponse.history.slice(0, 5)); // Get only the 5 most recent
         }
       } catch (err) {
         setError(err.response?.data?.message || 'Failed to load dashboard data');
