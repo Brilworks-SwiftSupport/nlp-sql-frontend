@@ -140,7 +140,7 @@ const QueryPage = () => {
     }
   };
   
-  const handleQueryExecution = async (query) => {
+  const handleQueryExecution = async (query, pairs = []) => {
     try {
       setError(null);
       
@@ -153,7 +153,7 @@ const QueryPage = () => {
         return queryResult;
       }
       
-      const response = await queryAPI.executeQuery(id, query);
+      const response = await queryAPI.executeQuery(id, query, pairs);
       
       if (response.status === 'success') {
         setQueryResult(response);
