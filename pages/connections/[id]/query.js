@@ -28,6 +28,8 @@ const QueryPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [queryResult, setQueryResult] = useState(null);
+  const [isSavingQuery, setIsSavingQuery] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   
   // Get connection and check if schema exists
   useEffect(() => {
@@ -48,26 +50,12 @@ const QueryPage = () => {
           }
         }
         
-        // Check if schema exists for this connection by trying to get tables
-        // try {
-        //   const tablesResponse = await connectionAPI.getTables(id);
-        //   if (tablesResponse.status === 'success') {
-        //     setTables(tablesResponse.tables);
-        //     // Let's assume schema exists if we can get tables
-        //     setHasStoredSchema(true);
-        //   }
-        // } catch (err) {
-        //   // If we can't get tables, we might need to store schema first
-        //   setHasStoredSchema(false);
-        //   setShowSchemaSelector(true);
-        // }
-        
         // Get recent queries
         try {
           const historyResponse = await queryAPI.getHistory();
           if (historyResponse.status === 'success') {
             // Filter for queries related to this connection and extract the natural language queries
-            const connectionQueries = historyResponse.queries
+            const connectionQueries = historyResponse.history
               .filter(q => q.connection_id.toString() === id)
               .map(q => q.natural_language_query);
             
@@ -160,7 +148,7 @@ const QueryPage = () => {
         
         // Add to recent queries if not already present
         if (!recentQueries.includes(query)) {
-          setRecentQueries([query, ...recentQueries.slice(0, 4)]);
+          setRecentQueries([query, ...recentQueries.slice(0, 5)]);
         }
         
         return response;
@@ -172,6 +160,33 @@ const QueryPage = () => {
       const errorMessage = err.response?.data?.message || 'An error occurred while executing the query';
       setError(errorMessage);
       return { status: 'error', message: errorMessage };
+    }
+  };
+
+  const handleSaveQuery = async () => {
+    if (!queryResult) return;
+    
+    try {
+      setIsSavingQuery(true);
+      setError(null);
+      
+      const response = await queryAPI.saveQueryExample({
+        connection_id: id,
+        natural_language_query: queryResult.natural_language_query,
+        sql_query: queryResult.sql_query
+      });
+      
+      if (response.status === 'success') {
+        setSaveSuccess(true);
+        // Reset success message after 3 seconds
+        setTimeout(() => setSaveSuccess(false), 3000);
+      } else {
+        setError(response.message || 'Failed to save query example');
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'An error occurred while saving the query');
+    } finally {
+      setIsSavingQuery(false);
     }
   };
   
@@ -208,14 +223,14 @@ const QueryPage = () => {
                 </Button>
               </Link>
               
-              {/* {hasStoredSchema && !showSchemaSelector && (
+              {hasStoredSchema && !showSchemaSelector && (
                 <Button
                   variant="outline"
                   onClick={handleShowSchemaSelector}
                 >
                   Change Tables
                 </Button>
-              )} */}
+              )}
             </div>
           </div>
         </div>
@@ -229,22 +244,7 @@ const QueryPage = () => {
             />
           )}
           
-          {/* Table Schema Selector */}
-          {/* {showSchemaSelector && (
-            <div className="mt-6">
-              <TableSelector
-                tables={tables}
-                selectedTables={selectedTables}
-                onSelect={handleTableSelection}
-                onSubmit={handleStoreSchema}
-                isLoading={isTableSelectorLoading || isSchemaStoring}
-                title="Select Tables for Querying"
-                subtitle="Choose which tables you want to include in your schema for natural language queries."
-                submitButtonText={isSchemaStoring ? "Storing Schema..." : "Store Selected Tables Schema"}
-              />
-            </div>
-          )} */}
-          
+         
           {/* Query Form */}
           { (
             <div className="mt-6">
@@ -259,6 +259,38 @@ const QueryPage = () => {
           {/* SQL Display and Results */}
           {queryResult && (
             <div className="mt-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-medium text-gray-900">Query Results</h2>
+                <div className="flex items-center space-x-2">
+                  {saveSuccess && (
+                    <span className="text-green-600 text-sm">
+                      Query saved successfully!
+                    </span>
+                  )}
+                  <Button
+                    variant="outline"
+                    onClick={handleSaveQuery}
+                    disabled={isSavingQuery}
+                  >
+                    {isSavingQuery ? (
+                      <span className="flex items-center">
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Saving...
+                      </span>
+                    ) : (
+                      <span className="flex items-center">
+                        <svg className="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                        </svg>
+                        Add to Query Examples
+                      </span>
+                    )}
+                  </Button>
+                </div>
+              </div>
               <SqlDisplay sql={queryResult.sql_query} />
               <ResultTable
                 data={queryResult.result}
@@ -267,26 +299,7 @@ const QueryPage = () => {
             </div>
           )}
           
-          {/* Schema Required Notice */}
-          {/* {(!hasStoredSchema && !showSchemaSelector) && (
-            <div className="mt-6 bg-white shadow overflow-hidden sm:rounded-lg p-6">
-              <h3 className="text-lg leading-6 font-medium text-gray-900">Table Schema Required</h3>
-              <div className="mt-2 max-w-xl text-sm text-gray-500">
-                <p>
-                  Before you can query this database, you need to select which tables to include in your schema.
-                  This helps the AI understand your database structure and generate accurate SQL queries.
-                </p>
-              </div>
-              <div className="mt-5">
-                <Button 
-                  variant="primary"
-                  onClick={handleShowSchemaSelector}
-                >
-                  Select Tables
-                </Button>
-              </div>
-            </div>
-          )} */}
+        
         </div>
       </div>
     </Layout>

@@ -3,43 +3,35 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
-import Layout from '../components/layout/Layout';
-import ConnectionCard from '../components/connections/ConnectionCard';
-import { connectionAPI, queryAPI } from '../lib/api';
+import Layout from '../../components/layout/Layout';
+import { queryAPI } from '../../lib/api';
 
 export default function Dashboard() {
   const router = useRouter();
-  const [connections, setConnections] = useState([]);
   const [recentQueries, setRecentQueries] = useState([]);
+  const [filteredQueries, setFilteredQueries] = useState([]);
+  const [collections, setConnections] = useState([]);
+  const [selectedConnection, setSelectedConnection] = useState('all');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   
   useEffect(() => {
-    // Check if user is logged in
     const token = localStorage.getItem('token');
     if (!token) {
       router.push('/login');
       return;
     }
     
-    // Fetch data
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        
-        // Fetch connections
-        const connectionsResponse = await connectionAPI.getAll();
-        if (connectionsResponse.status === 'success') {
-          setConnections(connectionsResponse.connections);
-          
-          // Store connections in session storage for easy access
-          sessionStorage.setItem('connections', JSON.stringify(connectionsResponse.connections));
-        }
-        
-        // Fetch recent queries
         const queriesResponse = await queryAPI.getHistory();
         if (queriesResponse.status === 'success') {
-          setRecentQueries(queriesResponse.history.slice(0, 5)); // Get only the 5 most recent
+          setRecentQueries(queriesResponse.history);
+          // Extract unique collections
+          const uniqueConnections = [...new Set(queriesResponse.history.map(query => query.connection_name))];
+          setConnections(uniqueConnections);
+          setFilteredQueries(queriesResponse.history);
         }
       } catch (err) {
         setError(err.response?.data?.message || 'Failed to load dashboard data');
@@ -50,6 +42,15 @@ export default function Dashboard() {
     
     fetchData();
   }, [router]);
+
+  useEffect(() => {
+    if (selectedConnection === 'all') {
+      setFilteredQueries(recentQueries);
+    } else {
+      const filtered = recentQueries.filter(query => query.connection_name === selectedConnection);
+      setFilteredQueries(filtered);
+    }
+  }, [selectedConnection, recentQueries]);
   
   if (isLoading) {
     return (
@@ -64,14 +65,10 @@ export default function Dashboard() {
   return (
     <Layout>
       <Head>
-        <title>Dashboard - NLP SQL Bot</title>
+        <title>Query History - NLP SQL Bot</title>
       </Head>
       
       <div className="py-6">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
-          <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
-        </div>
-        
         <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
           {error && (
             <div className="mt-4 bg-red-50 border-l-4 border-red-400 p-4">
@@ -87,62 +84,34 @@ export default function Dashboard() {
               </div>
             </div>
           )}
-          
-          {/* Database Connections Section */}
-          <div className="mt-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-medium text-gray-900">Database Connections</h2>
-              <Link
-                href="/connections/new"
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                Add Connection
-              </Link>
-            </div>
-            
-            <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {isLoading ? (
-                // Loading skeleton
-                [...Array(3)].map((_, i) => (
-                  <div key={i} className="bg-white shadow rounded-lg p-6">
-                    <div className="animate-pulse flex space-x-4">
-                      <div className="rounded-full bg-blue-400 h-12 w-12"></div>
-                      <div className="flex-1 space-y-4 py-1">
-                        <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-                        <div className="space-y-2">
-                          <div className="h-4 bg-gray-200 rounded"></div>
-                          <div className="h-4 bg-gray-200 rounded w-5/6"></div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                connections.map((connection) => (
-                  <ConnectionCard key={connection.id} connection={connection} />
-                ))
-              )}
-              
-              {!isLoading && connections.length === 0 && (
-                <div className="col-span-full bg-white overflow-hidden shadow rounded-lg">
-                  <div className="px-4 py-5 sm:p-6 text-center">
-                    <p className="text-gray-500">No database connections found.</p>
-                    <p className="text-sm text-gray-400 mt-1">
-                      Add a connection to get started with querying your databases.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
+
+          {/* Connection Filter */}
+          <div className="mb-6">
+            <label htmlFor="collection" className="block text-sm font-medium text-gray-700">
+              Filter by Connection
+            </label>
+            <select
+              id="collection"
+              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+              value={selectedConnection}
+              onChange={(e) => setSelectedConnection(e.target.value)}
+            >
+              <option value="all">All Connections</option>
+              {collections.map((collection) => (
+                <option key={collection} value={collection}>
+                  {collection}
+                </option>
+              ))}
+            </select>
           </div>
-          
+      
           {/* Recent Queries Section */}
           <div className="mt-8">
-            <h2 className="text-lg font-medium text-gray-900">Recent Queries</h2>
+            <h2 className="text-lg font-medium text-gray-900">Your Queries</h2>
             
             <div className="mt-4 bg-white shadow overflow-hidden sm:rounded-md">
               <ul className="divide-y divide-gray-200">
-                {recentQueries.map((query) => (
+                {filteredQueries.map((query) => (
                   <li key={query.id}>
                     <div className="px-4 py-4 sm:px-6">
                       <div className="flex items-center justify-between">
@@ -160,12 +129,18 @@ export default function Dashboard() {
                         </div>
                       </div>
                       <div className="mt-2 flex justify-between">
-                        <div className="sm:flex">
+                        <div className="sm:flex space-x-4">
                           <p className="flex items-center text-sm text-gray-500">
                             <svg className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                               <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                             </svg>
                             Connection ID: {query.connection_id}
+                          </p>
+                          <p className="flex items-center text-sm text-gray-500">
+                            <svg className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                              <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" />
+                            </svg>
+                            Connection Name: {query.connection_name}
                           </p>
                         </div>
                         <div className="flex items-center text-sm text-gray-500">
@@ -186,28 +161,19 @@ export default function Dashboard() {
                   </li>
                 ))}
                 
-                {recentQueries.length === 0 && (
+                {filteredQueries.length === 0 && (
                   <li>
                     <div className="px-4 py-5 sm:px-6 text-center">
-                      <p className="text-gray-500">No recent queries found.</p>
+                      <p className="text-gray-500">No queries found.</p>
                       <p className="text-sm text-gray-400 mt-1">
-                        Start querying your databases to see your query history.
+                        {selectedConnection === 'all' 
+                          ? 'Start querying your databases to see your query history.'
+                          : 'No queries found for the selected collection.'}
                       </p>
                     </div>
                   </li>
                 )}
               </ul>
-              
-              {recentQueries.length > 0 && (
-                <div className="bg-gray-50 px-4 py-3 text-right sm:px-6">
-                  <Link
-                    href="/queries/history"
-                    className="text-sm font-medium text-blue-600 hover:text-blue-500"
-                  >
-                    View all queries
-                  </Link>
-                </div>
-              )}
             </div>
           </div>
         </div>
