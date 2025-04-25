@@ -67,7 +67,6 @@ const TableSelector = ({
 
   // Calculate if all tables are selected
   const allTablesSelected = tables.length > 0 && internalSelectedTables.length === tables.length;
-  const someTablesSelected = internalSelectedTables.length > 0 && !allTablesSelected;
 
   if (!tables || tables.length === 0) {
     return (
@@ -96,8 +95,9 @@ const TableSelector = ({
       title={title}
       subtitle={subtitle}
       className={className}
+      style={{width: '100%'}}
     >
-      <div className="space-y-4">
+      <div className="w-full space-y-4">
         {/* Search and bulk actions */}
         <div className="flex flex-col sm:flex-row justify-between gap-3">
           {searchable && (
