@@ -65,16 +65,6 @@ const TableNode = memo(({ data, id }) => {
     });
   };
 
-  // Auto-select all columns when component mounts
-  useEffect(() => {
-    // Select all columns that aren't already selected
-    columns.forEach(col => {
-      if (!tableSelectedColumns.includes(col.name)) {
-        onColumnSelect(id, col.name, true);
-      }
-    });
-  }, []); // Empty dependency array ensures this runs only once when component mounts
-
   // Auto-select foreign keys (keeping this for consistency with existing behavior)
   useEffect(() => {
     const foreignKeys = columns.filter(
