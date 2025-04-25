@@ -43,18 +43,6 @@ import KeyIcon from '@mui/icons-material/Key';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 
-// List of ad spend tables for special handling
-const AD_SPEND_TABLES = [
-  'Community', 
-  'ChallengeFree', 
-  'ChallengePaid', 
-  'ChallengeHybrid',
-  'LowTicketAcquisition', 
-  'HighTicketVSL', 
-  'InstagramDM', 
-  'WebinarBase', 
-  'WebinarAdvance'
-];
 
 const TableSelector = ({ schema, selectedTables, onTablesChange, schema_type }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -131,10 +119,6 @@ const TableSelector = ({ schema, selectedTables, onTablesChange, schema_type }) 
     console.log('TableSelector has schema keys:', schema ? Object.keys(schema).length : 0);
   }, [schema, filteredTables]);
   
-  // Check if a table is an ad spend table
-  const isAdSpendTable = (tableName) => {
-    return AD_SPEND_TABLES.includes(tableName);
-  };
   
   // Count columns in table
   const getColumnCount = (tableName) => {
@@ -142,236 +126,227 @@ const TableSelector = ({ schema, selectedTables, onTablesChange, schema_type }) 
   };
   
   return (
-    <Card>
-      <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <StorageIcon sx={{ mr: 1 }} />
-            <Typography variant="h6">Database Tables</Typography>
+    <div style={{ width: '100%' }}>
+      <Card sx={{ 
+        maxHeight: 400, 
+        overflow: 'auto',
+        width: '100% !important',
+        '& .MuiTable-root': {
+          width: '100% !important',
+          tableLayout: 'auto',
+        }
+
+
+      }}>
+        <CardContent>
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between', 
+            mb: 2, 
+            width: '100%'
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <StorageIcon sx={{ mr: 1 }} />
+              <Typography variant="h6">Database Tables</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button 
+                variant="outlined" 
+                size="small" 
+                onClick={handleSelectAll}
+              >
+                Select All
+              </Button>
+              <Button 
+                variant="outlined" 
+                size="small" 
+                onClick={handleDeselectAll}
+              >
+                Deselect All
+              </Button>
+            </Box>
           </Box>
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button 
-              variant="outlined" 
-              size="small" 
-              onClick={handleSelectAll}
-            >
-              Select All
-            </Button>
-            <Button 
-              variant="outlined" 
-              size="small" 
-              onClick={handleDeselectAll}
-            >
-              Deselect All
-            </Button>
-          </Box>
-        </Box>
-        
-        <TextField
-          fullWidth
-          placeholder="Search tables..."
-          variant="outlined"
-          size="small"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          sx={{ mb: 2 }}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon />
-              </InputAdornment>
-            ),
-          }}
-        />
-        
-        {/* Ad Spend Tables Section - Quick selection */}
-        <Box sx={{ mb: 3, border: '1px solid #e0e0e0', borderRadius: 1, p: 1 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-            Ad Spend Tables:
-          </Typography>
           
-          <Grid container spacing={1}>
-            {AD_SPEND_TABLES.map(tableName => (
-              <Grid item key={tableName} xs={6} sm={4}>
-                <Chip 
-                  label={tableName}
-                  onClick={() => handleToggleTable(tableName)}
-                  color={selectedTablesState.includes(tableName) ? "primary" : "default"}
-                  variant={selectedTablesState.includes(tableName) ? "filled" : "outlined"}
-                  sx={{ 
-                    cursor: 'pointer',
-                    fontWeight: selectedTablesState.includes(tableName) ? 'bold' : 'normal'
-                  }}
-                />
-              </Grid>
-            ))}
-          </Grid>
-        </Box>
-        
-        {/* Tables count summary */}
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="body2" color="text.secondary">
-            {selectedTablesState.length} of {filteredTables.length} tables selected
-          </Typography>
-          {selectedTablesState.filter(isAdSpendTable).length > 0 && (
-            <Chip 
-              label={`${selectedTablesState.filter(isAdSpendTable).length} Ad Spend Tables`} 
-              size="small" 
-              color="primary" 
-              variant="outlined"
-              sx={{ mt: 1 }}
-            />
-          )}
-        </Box>
-        
-        <Divider sx={{ mb: 2 }} />
-        
-        {/* Table list with details */}
-        <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 400, overflow: 'auto' }}>
-          <Table stickyHeader size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell padding="checkbox">Select</TableCell>
-                <TableCell>Table Name</TableCell>
-                <TableCell align="right">Columns</TableCell>
-                <TableCell align="center">Details</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredTables.map((tableName) => {
-                const isSelected = selectedTablesState.includes(tableName);
-                const isExpanded = expandedTables[tableName];
-                const tableColumns = schema[tableName]?.columns || [];
-                const highlightedTable = isAdSpendTable(tableName);
-                
-                return (
-                  <React.Fragment key={tableName}>
-                    <TableRow 
-                      hover
-                      sx={{
-                        backgroundColor: highlightedTable ? 'rgba(144, 202, 249, 0.15)' : 'inherit',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <TableCell padding="checkbox">
-                        <Checkbox
-                          edge="start"
-                          checked={isSelected}
-                          onChange={() => handleToggleTable(tableName)}
-                          inputProps={{ 'aria-labelledby': `checkbox-${tableName}` }}
-                        />
-                      </TableCell>
-                      <TableCell 
-                        component="th" 
-                        scope="row"
-                        onClick={() => toggleTableExpand(tableName)}
-                        sx={{ fontWeight: isSelected ? 'bold' : 'normal' }}
-                      >
-                        <Box display="flex" alignItems="center">
-                          <IconButton 
-                            size="small" 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleTableExpand(tableName);
-                            }}
-                            sx={{ mr: 1 }}
-                          >
-                            {isExpanded ? <RemoveIcon fontSize="small" /> : <AddIcon fontSize="small" />}
-                          </IconButton>
-                          {tableName}
-                          {highlightedTable && (
-                            <Tooltip title="Ad Spend Table" arrow>
-                              <Chip
-                                label="Ad Spend"
-                                size="small"
-                                color="primary"
-                                variant="outlined"
-                                icon={<LocalOfferIcon fontSize="small" />}
-                                sx={{ ml: 1, height: 20 }}
-                              />
-                            </Tooltip>
-                          )}
-                        </Box>
-                      </TableCell>
-                      <TableCell align="right">{getColumnCount(tableName)}</TableCell>
-                      <TableCell align="center">
-                        <IconButton
-                          size="small"
-                          onClick={() => toggleTableExpand(tableName)}
-                        >
-                          <ViewColumnIcon fontSize="small" />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                    
-                    {/* Collapsible section for columns */}
-                    <TableRow>
-                      <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={4}>
-                        <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-                          <Box sx={{ margin: 1 }}>
-                            <Typography variant="subtitle2" gutterBottom component="div">
-                              Columns
-                            </Typography>
-                            <Table size="small" aria-label="column details">
-                              <TableHead>
-                                <TableRow>
-                                  <TableCell>Name</TableCell>
-                                  <TableCell>Type</TableCell>
-                                  <TableCell align="center">Primary Key</TableCell>
-                                </TableRow>
-                              </TableHead>
-                              <TableBody>
-                                {tableColumns.map((column) => (
-                                  <TableRow key={column.name}>
-                                    <TableCell component="th" scope="row">
-                                      {column.name}
-                                    </TableCell>
-                                    <TableCell>{column.type || column.data_type}</TableCell>
-                                    <TableCell align="center">
-                                      {(column.is_primary_key || column.key === 'PRI') && 
-                                        <KeyIcon color="primary" fontSize="small" />
-                                      }
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          </Box>
-                        </Collapse>
-                      </TableCell>
-                    </TableRow>
-                  </React.Fragment>
-                );
-              })}
-              
-              {filteredTables.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={4} align="center">
-                    <Typography variant="body2" color="textSecondary">
-                      No tables found
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-        
-        {selectedTablesState.length > 0 && (
-          <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-            {selectedTablesState.map(table => (
-              <Chip
-                key={table}
-                label={table}
-                size="small"
-                onDelete={() => handleToggleTable(table)}
-                color="primary"
-              />
-            ))}
+          <TextField
+            fullWidth
+            placeholder="Search tables..."
+            variant="outlined"
+            size="small"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            sx={{ mb: 2 }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+            }}
+          />
+          
+          <Box sx={{ mb: 2, width: '100%' }}>
+            <Typography variant="body2" color="text.secondary">
+              {selectedTablesState.length} of {filteredTables.length} tables selected
+            </Typography>
           </Box>
-        )}
-      </CardContent>
-    </Card>
+          
+          <Divider sx={{ mb: 2 }} />
+          
+          <TableContainer 
+            component={Paper} 
+            variant="outlined" 
+            sx={{ 
+              maxHeight: 400, 
+              overflow: 'auto',
+              width: '100%',
+              '& .MuiTable-root': {
+                minWidth: '100%'
+              }
+            }}
+          >
+            <Table stickyHeader size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell padding="checkbox" sx={{ width: '100%' }}>Select</TableCell>
+                  <TableCell>Table Name</TableCell>
+                  <TableCell align="right">Columns</TableCell>
+                  <TableCell align="center">Details</TableCell>
+
+                </TableRow>
+              </TableHead>
+              <TableBody sx={{ width: '100%' }}>
+                {filteredTables.map((tableName) => {
+                  const isSelected = selectedTablesState.includes(tableName);
+                  const isExpanded = expandedTables[tableName];
+                  const tableColumns = schema[tableName]?.columns || [];
+                  
+                  return (
+                    <React.Fragment key={tableName}>
+                      <TableRow 
+                        hover
+                        sx={{
+                          backgroundColor: 'inherit',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <TableCell padding="checkbox">
+                          <Checkbox
+                            edge="start"
+                            checked={isSelected}
+                            onChange={() => handleToggleTable(tableName)}
+                            inputProps={{ 'aria-labelledby': `checkbox-${tableName}` }}
+                          />
+                        </TableCell>
+                        <TableCell 
+                          component="th" 
+                          scope="row"
+                          onClick={() => toggleTableExpand(tableName)}
+                          sx={{ fontWeight: isSelected ? 'bold' : 'normal' }}
+                        >
+                          <Box display="flex" alignItems="center">
+                            <IconButton 
+                              size="small" 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleTableExpand(tableName);
+                              }}
+                              sx={{ mr: 1 }}
+                            >
+                              {isExpanded ? <RemoveIcon fontSize="small" /> : <AddIcon fontSize="small" />}
+                            </IconButton>
+                            {tableName}
+            
+                          </Box>
+                        </TableCell>
+                        <TableCell align="right">{getColumnCount(tableName)}</TableCell>
+                        <TableCell align="center">
+                          <IconButton
+                            size="small"
+                            onClick={() => toggleTableExpand(tableName)}
+                          >
+                            <ViewColumnIcon fontSize="small" />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                      
+                      {/* Collapsible section for columns */}
+                      <TableRow>
+                        <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={4}>
+                          <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                            <Box sx={{ margin: 1 ,width: '100%'}}>
+                              <Typography variant="subtitle2" gutterBottom component="div">
+                                Columns
+                              </Typography>
+                              <Table size="small" aria-label="column details" sx={{ width: '100%' }}>
+                              <TableHead>
+                                  <TableRow>
+                                    <TableCell>Name</TableCell>
+                                    <TableCell>Type</TableCell>
+                                    <TableCell align="center">Primary Key</TableCell>
+                                  </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                  {tableColumns.map((column) => (
+                                    <TableRow key={column.name}>
+                                      <TableCell component="th" scope="row">
+                                        {column.name}
+                                      </TableCell>
+                                      <TableCell>{column.type || column.data_type}</TableCell>
+                                      <TableCell align="center">
+                                        {(column.is_primary_key || column.key === 'PRI') && 
+                                          <KeyIcon color="primary" fontSize="small" />
+                                        }
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </Box>
+                          </Collapse>
+                        </TableCell>
+                      </TableRow>
+                    </React.Fragment>
+                  );
+                })}
+                
+                {filteredTables.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={4} align="center">
+                      <Typography variant="body2" color="textSecondary">
+                        No tables found
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          
+         
+        </CardContent>
+   
+      </Card>
+      {selectedTablesState.length > 0 && (
+            <Box sx={{ 
+              mt: 2, 
+              display: 'flex', 
+              flexWrap: 'wrap', 
+              gap: 0.5, 
+              width: '100%' 
+            }}>
+              {selectedTablesState.map(table => (
+                <Chip
+                  key={table}
+                  label={table}
+                  size="small"
+                  onDelete={() => handleToggleTable(table)}
+                  color="primary"
+                />
+              ))}
+            </Box>
+          )}
+    </div>
   );
 };
 

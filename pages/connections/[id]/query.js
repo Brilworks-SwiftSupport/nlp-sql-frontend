@@ -7,6 +7,7 @@ import Layout from '../../../components/layout/Layout';
 import QueryForm from '../../../components/query/QueryForm';
 import SqlDisplay from '../../../components/query/SqlDisplay';
 import ResultTable from '../../../components/query/ResultTable';
+import ResultGraph from '../../../components/query/ResultGraph';
 import TableSelector from '../../../components/tables/TableSelector';
 import Button from '../../../components/common/Button';
 import Alert from '../../../components/common/Alert';
@@ -296,6 +297,12 @@ const QueryPage = () => {
                 data={queryResult.result}
                 rowCount={queryResult.row_count}
               />
+              <div className="mt-6">
+                <ResultGraph
+                  data={queryResult.result}
+                  title="Query Results Visualization"
+                />
+              </div>
             </div>
           )}
           

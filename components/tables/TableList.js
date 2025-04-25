@@ -27,7 +27,7 @@ const TableList = ({
         subtitle="Loading tables..."
         className={className}
       >
-        <div className="flex justify-center py-6">
+        <div className="w-full flex justify-center py-6">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
         </div>
       </Card>
@@ -41,7 +41,7 @@ const TableList = ({
         subtitle="No tables found in this database or you don't have permission to access them."
         className={className}
       >
-        <div className="text-center py-6">
+        <div className="w-full text-center py-6">
           <svg
             className="mx-auto h-12 w-12 text-gray-400"
             fill="none"
