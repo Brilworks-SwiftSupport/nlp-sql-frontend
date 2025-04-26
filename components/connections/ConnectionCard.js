@@ -69,6 +69,12 @@ const ConnectionCard = ({ connection }) => {
           >
             Query
           </Link>
+          <Link
+            href={`/connections/${connection.id}/dashboard`}
+            className="flex-1 text-center px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-500 hover:bg-gray-100 rounded-md transition-colors"
+          >
+            Dashboard
+          </Link>
         </div>
       </div>
     </div>
