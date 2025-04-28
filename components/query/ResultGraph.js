@@ -1,75 +1,182 @@
-import React, { useMemo, useState } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
-  PointElement,
-  LineElement,
   BarElement,
+  LineElement,
+  PointElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  ArcElement
 } from 'chart.js';
-import { Line, Bar } from 'react-chartjs-2';
+import { Bar, Line, Doughnut } from 'react-chartjs-2';
+import html2canvas from 'html2canvas';
 
-// Register ChartJS components
 ChartJS.register(
   CategoryScale,
   LinearScale,
-  PointElement,
-  LineElement,
   BarElement,
+  LineElement,
+  PointElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  ArcElement
 );
 
 const ResultGraph = ({
   data = [],
+  sql = '', // Add SQL prop
   title = 'Query Results',
   className = '',
   maxHeight = 400,
   emptyMessage = 'No results found.',
 }) => {
-  const [chartType, setChartType] = useState('bar'); // 'bar' or 'line'
-  const [xAxis, setXAxis] = useState('');
-  const [yAxis, setYAxis] = useState('');
+  const chartRef = useRef(null);
+  const [chartType, setChartType] = useState('bar');
+  const [activeTab, setActiveTab] = useState('graph'); // 'graph' or 'data' or 'sql'
+  const [copiedSQL, setCopiedSQL] = useState(false);
+  
+  // Automatically determine the best chart type and data structure
+  const chartData = useMemo(() => {
+    if (!data || data.length === 0) return null;
 
-  // Get column headers from first row if data exists
-  const columns = useMemo(() => {
-    if (data.length === 0) return [];
-    return Object.keys(data[0]);
+    const firstRow = data[0];
+    const keys = Object.keys(firstRow);
+    
+    const numericColumns = keys.filter(key => 
+      typeof firstRow[key] === 'number' || !isNaN(parseFloat(firstRow[key]))
+    );
+    const nonNumericColumns = keys.filter(key => !numericColumns.includes(key));
+
+    if (numericColumns.length >= 1 && nonNumericColumns.length >= 1) {
+      const labels = data.map(row => row[nonNumericColumns[0]]);
+      const datasets = numericColumns.map(column => ({
+        label: column,
+        data: data.map(row => parseFloat(row[column])),
+        backgroundColor: `hsla(${Math.random() * 360}, 70%, 50%, 0.6)`,
+        borderColor: `hsla(${Math.random() * 360}, 70%, 50%, 1)`,
+        borderWidth: 1,
+      }));
+
+      return {
+        labels,
+        datasets,
+      };
+    }
+
+    if (numericColumns.length === 1 && data.length === 1) {
+      return {
+        labels: [nonNumericColumns[0] || 'Total'],
+        datasets: [{
+          data: [parseFloat(data[0][numericColumns[0]])],
+          backgroundColor: ['rgba(54, 162, 235, 0.6)'],
+          borderColor: ['rgba(54, 162, 235, 1)'],
+          borderWidth: 1,
+        }],
+      };
+    }
+
+    return null;
   }, [data]);
 
-  // Filter numeric columns for Y-axis
-  const numericColumns = useMemo(() => {
-    if (data.length === 0) return [];
-    return columns.filter(col => 
-      typeof data[0][col] === 'number' || 
-      !isNaN(parseFloat(data[0][col]))
-    );
-  }, [data, columns]);
+  useEffect(() => {
+    if (!chartData) return;
 
-  // Prepare chart data
-  const chartData = useMemo(() => {
-    if (!xAxis || !yAxis || data.length === 0) return null;
+    if (chartData.datasets[0].data.length === 1) {
+      setChartType('doughnut');
+    } else if (chartData.labels.length > 10) {
+      setChartType('line');
+    } else {
+      setChartType('bar');
+    }
+  }, [chartData]);
 
-    const labels = data.map(row => row[xAxis]);
-    const values = data.map(row => parseFloat(row[yAxis]));
+  const downloadImage = async () => {
+    if (!chartRef.current) return;
+    
+    const canvas = await html2canvas(chartRef.current);
+    const link = document.createElement('a');
+    link.download = `${title.replace(/\s+/g, '_')}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  };
 
-    return {
-      labels,
-      datasets: [
-        {
-          label: yAxis,
-          data: values,
-          backgroundColor: 'rgba(53, 162, 235, 0.5)',
-          borderColor: 'rgb(53, 162, 235)',
-          borderWidth: 1,
-        },
-      ],
-    };
-  }, [data, xAxis, yAxis]);
+  const downloadCSV = () => {
+    if (!data || data.length === 0) return;
+    
+    const headers = Object.keys(data[0]);
+    const csvContent = [
+      headers.join(','),
+      ...data.map(row => headers.map(header => row[header]).join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const link = document.createElement('a');
+    link.download = `${title.replace(/\s+/g, '_')}.csv`;
+    link.href = URL.createObjectURL(blob);
+    link.click();
+  };
+
+  const handleCopySQL = () => {
+    navigator.clipboard.writeText(sql).then(() => {
+      setCopiedSQL(true);
+      setTimeout(() => setCopiedSQL(false), 2000);
+    });
+  };
+
+  const renderDataTable = () => (
+    <div className="overflow-x-auto">
+      <table className="min-w-full divide-y divide-gray-200">
+        <thead className="bg-gray-50">
+          <tr>
+            {Object.keys(data[0]).map((header, i) => (
+              <th
+                key={i}
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                {header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="bg-white divide-y divide-gray-200">
+          {data.map((row, i) => (
+            <tr key={i}>
+              {Object.values(row).map((value, j) => (
+                <td
+                  key={j}
+                  className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"
+                >
+                  {value?.toString() || ''}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  const renderSQL = () => (
+    <div className="bg-gray-800 rounded-lg p-4 relative">
+      <button
+        onClick={handleCopySQL}
+        className="absolute top-2 right-2 px-3 py-1 text-sm bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors"
+      >
+        {copiedSQL ? 'Copied!' : 'Copy SQL'}
+      </button>
+      <pre className="text-gray-100 font-mono text-sm whitespace-pre-wrap overflow-x-auto">
+        {sql}
+      </pre>
+    </div>
+  );
+
+  if (!chartData) {
+    return <div className="text-center text-gray-500 py-8">{emptyMessage}</div>;
+  }
 
   const chartOptions = {
     responsive: true,
@@ -83,83 +190,102 @@ const ResultGraph = ({
         text: title,
       },
     },
-    scales: {
+    scales: chartType !== 'doughnut' ? {
       y: {
         beginAtZero: true,
       },
-    },
+    } : undefined,
   };
 
-  if (!data || data.length === 0) {
-    return (
-      <div className={`bg-white shadow rounded-lg p-6 ${className}`}>
-        <h2 className="text-xl font-semibold mb-4">{title}</h2>
-        <p className="text-gray-500">{emptyMessage}</p>
-      </div>
-    );
-  }
-
   return (
-    <div className={`bg-white shadow rounded-lg p-6 ${className}`}>
-      <div className="flex flex-col space-y-4">
-        <div className="flex justify-between items-center">
-          <h2 className="text-xl font-semibold">{title}</h2>
-          <div className="flex items-center space-x-4">
-            <select
-              className="block pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-              value={chartType}
-              onChange={(e) => setChartType(e.target.value)}
-            >
-              <option value="bar">Bar Chart</option>
-              <option value="line">Line Chart</option>
-            </select>
-          </div>
-        </div>
+    <div className={`flex flex-col ${className}`}>
+      {/* Tabs */}
+      <div className="flex border-b border-gray-200 mb-4">
+        <button
+          onClick={() => setActiveTab('graph')}
+          className={`py-2 px-4 text-sm font-medium ${
+            activeTab === 'graph'
+              ? 'border-b-2 border-blue-500 text-blue-600'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Graph View
+        </button>
+        <button
+          onClick={() => setActiveTab('data')}
+          className={`py-2 px-4 text-sm font-medium ${
+            activeTab === 'data'
+              ? 'border-b-2 border-blue-500 text-blue-600'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Data View
+        </button>
+        <button
+          onClick={() => setActiveTab('sql')}
+          className={`py-2 px-4 text-sm font-medium ${
+            activeTab === 'sql'
+              ? 'border-b-2 border-blue-500 text-blue-600'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          SQL Query
+        </button>
+      </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">X-Axis</label>
-            <select
-              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-              value={xAxis}
-              onChange={(e) => setXAxis(e.target.value)}
+      {/* Action Buttons */}
+      <div className="flex justify-end space-x-2 mb-4">
+        {activeTab === 'graph' && (
+          <>
+            <button
+              onClick={() => setChartType('bar')}
+              className={`px-3 py-1 rounded ${chartType === 'bar' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
             >
-              <option value="">Select X-Axis</option>
-              {columns.map(col => (
-                <option key={col} value={col}>{col}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Y-Axis</label>
-            <select
-              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-              value={yAxis}
-              onChange={(e) => setYAxis(e.target.value)}
+              Bar
+            </button>
+            <button
+              onClick={() => setChartType('line')}
+              className={`px-3 py-1 rounded ${chartType === 'line' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
             >
-              <option value="">Select Y-Axis</option>
-              {numericColumns.map(col => (
-                <option key={col} value={col}>{col}</option>
-              ))}
-            </select>
+              Line
+            </button>
+            <button
+              onClick={() => setChartType('doughnut')}
+              className={`px-3 py-1 rounded ${chartType === 'doughnut' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+            >
+              Doughnut
+            </button>
+            <button
+              onClick={downloadImage}
+              className="px-3 py-1 rounded bg-green-600 text-white"
+            >
+              Download PNG
+            </button>
+          </>
+        )}
+        {activeTab !== 'sql' && (
+          <button
+            onClick={downloadCSV}
+            className="px-3 py-1 rounded bg-green-600 text-white"
+          >
+            Download CSV
+          </button>
+        )}
+      </div>
+      
+      {/* Content */}
+      <div style={{ height: maxHeight }}>
+        {activeTab === 'graph' ? (
+          <div ref={chartRef} style={{ height: '100%' }}>
+            {chartType === 'bar' && <Bar data={chartData} options={chartOptions} />}
+            {chartType === 'line' && <Line data={chartData} options={chartOptions} />}
+            {chartType === 'doughnut' && <Doughnut data={chartData} options={chartOptions} />}
           </div>
-        </div>
-
-        <div style={{ height: maxHeight }}>
-          {chartData && (
-            chartType === 'bar' ? (
-              <Bar data={chartData} options={chartOptions} />
-            ) : (
-              <Line data={chartData} options={chartOptions} />
-            )
-          )}
-          {!chartData && (
-            <div className="h-full flex items-center justify-center text-gray-500">
-              Please select both X and Y axes to display the chart
-            </div>
-          )}
-        </div>
+        ) : activeTab === 'data' ? (
+          renderDataTable()
+        ) : (
+          renderSQL()
+        )}
       </div>
     </div>
   );
