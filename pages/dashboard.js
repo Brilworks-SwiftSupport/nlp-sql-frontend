@@ -16,6 +16,12 @@ export default function Dashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("name"); // name, date, connection
 
+  const handleDashboardDelete = (deletedDashboardId) => {
+    setDashboards(prevDashboards => 
+      prevDashboards.filter(dashboard => dashboard.id !== deletedDashboardId)
+    );
+  };
+
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
@@ -64,62 +70,86 @@ export default function Dashboard() {
     });
   };
 
-  const DashboardCard = ({ dashboard }) => (
-    <div className="bg-white rounded-lg border border-gray-200 hover:shadow-lg transition-all duration-200">
-      <div className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-2">
-            <div className="bg-blue-100 rounded-lg p-2">
-              <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
+  const DashboardCard = ({ dashboard, onDelete }) => {
+    const handleDelete = async (e) => {
+      e.preventDefault(); // Prevent clicking through to the dashboard view
+      e.stopPropagation();
+      
+      if (!confirm('Are you sure you want to delete this dashboard? This action cannot be undone.')) {
+        return;
+      }
+
+      try {
+        const response = await dashboardAPI.deleteDashboard(dashboard.id);
+        if (response.status === 'success') {
+          onDelete(dashboard.id);
+        }
+      } catch (err) {
+        console.error('Error deleting dashboard:', err);
+        alert('Failed to delete dashboard. Please try again.');
+      }
+    };
+
+    return (
+      <div className="bg-white rounded-lg border border-gray-200 hover:shadow-lg transition-all duration-200">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-2">
+              <div className="bg-blue-100 rounded-lg p-2">
+                <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              {dashboard.is_public && (
+                <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+                  Public
+                </span>
+              )}
             </div>
-            {dashboard.is_public && (
-              <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-                Public
-              </span>
-            )}
-          </div>
-          <div className="text-xs text-gray-500">
-            {new Date(dashboard.created_at).toLocaleDateString()}
-          </div>
-        </div>
-
-        <Link href={`/connections/${dashboard.connection.id}/dashboard/${dashboard.id}`}>
-          <h3 className="text-lg font-medium text-gray-900 hover:text-blue-600 transition-colors">
-            {dashboard.name}
-          </h3>
-        </Link>
-
-        {dashboard.description && (
-          <p className="mt-2 text-sm text-gray-500 line-clamp-2">
-            {dashboard.description}
-          </p>
-        )}
-
-        <div className="mt-4 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className="flex items-center text-sm text-gray-600">
-              <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7c-2 0-3 1-3 3z" />
+            <button
+              onClick={handleDelete}
+              className="text-gray-400 hover:text-red-600 transition-colors"
+              title="Delete dashboard"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
-              <span>{dashboard.connection.name}</span>
-            </div>
-            <span className="text-xs px-2 py-1 bg-gray-100 rounded-full text-gray-600">
-              {dashboard.connection.type}
-            </span>
+            </button>
           </div>
-          
-          <Link 
-            href={`/connections/${dashboard.connection.id}/dashboard/${dashboard.id}`}
-            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-          >
-            View Dashboard →
+
+          <Link href={`/connections/${dashboard.connection.id}/dashboard/${dashboard.id}`}>
+            <h3 className="text-lg font-medium text-gray-900 hover:text-blue-600 transition-colors">
+              {dashboard.name}
+            </h3>
           </Link>
+
+          {dashboard.description && (
+            <p className="mt-2 text-sm text-gray-500 line-clamp-2">
+              {dashboard.description}
+            </p>
+          )}
+
+          <div className="mt-4 flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <div className="flex items-center text-sm text-gray-600">
+                <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7c-2 0-3 1-3 3z" />
+                </svg>
+                <span>{dashboard.connection.name}</span>
+              </div>
+            </div>
+            
+            <Link 
+              href={`/connections/${dashboard.connection.id}/dashboard/${dashboard.id}`}
+              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+            >
+              View Dashboard →
+            </Link>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // Add new useEffect specifically for fetching connections
   useEffect(() => {
@@ -249,7 +279,11 @@ export default function Dashboard() {
               ))
             ) : filteredAndSortedDashboards().length > 0 ? (
               filteredAndSortedDashboards().map((dashboard) => (
-                <DashboardCard key={dashboard.id} dashboard={dashboard} />
+                <DashboardCard 
+                  key={dashboard.id} 
+                  dashboard={dashboard}
+                  onDelete={handleDashboardDelete}
+                />
               ))
             ) : (
               <div className="col-span-full text-center py-12">

@@ -44,6 +44,37 @@ const DashboardView = () => {
   const isInitialLoad = useRef(true);
   const prevLayouts = useRef({});
 
+  const handleDeleteWidget = async (widgetId) => {
+    console.log('Deleting widget with ID:', widgetId); // Add this for debugging
+    
+    if (!confirm('Are you sure you want to delete this widget? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await dashboardAPI.deleteWidget(widgetId);
+      if (response.status === 'success') {
+        // Update dashboard state by removing the deleted widget
+        setDashboard(prev => ({
+          ...prev,
+          widgets: prev.widgets.filter(w => w.id !== widgetId)
+        }));
+        
+        // Update layouts
+        const newLayouts = { ...layouts };
+        Object.keys(newLayouts).forEach(breakpoint => {
+          newLayouts[breakpoint] = newLayouts[breakpoint].filter(
+            item => item.i !== widgetId.toString()
+          );
+        });
+        setLayouts(newLayouts);
+      }
+    } catch (err) {
+      console.error('Error deleting widget:', err);
+      setError('Failed to delete widget. Please try again.');
+    }
+  };
+
   // Function to save layout to backend (only changed widgets)
   const saveLayout = async (newLayouts, oldLayouts) => {
     try {
@@ -360,15 +391,52 @@ const DashboardView = () => {
                 const isSingleValue = chartData?.data?.length === 1 && 
                   Object.keys(chartData.data[0]).length === 1;
                 
+                console.log('Widget being rendered:', widget); // Add this for debugging
+                
                 return (
                   <div 
                     key={widget.id}
-                    className="bg-white shadow rounded-lg overflow-hidden h-full"
+                    className="bg-white shadow rounded-lg overflow-hidden h-full relative"
+                    style={{ touchAction: 'none' }} // Prevent touch events from interfering
                   >
+                    {/* Increased z-index and added pointer-events-auto to ensure clickability */}
+                    <div className="absolute top-2 right-2 z-[999] pointer-events-auto">
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault(); // Prevent default behavior
+                          e.stopPropagation(); // Stop event bubbling
+                          console.log('Delete button clicked for widget:', widget.id); // Add this for debugging
+                          handleDeleteWidget(widget.id);
+                        }}
+                        onMouseDown={(e) => {
+                          e.preventDefault(); // Prevent drag initialization
+                          e.stopPropagation();
+                        }}
+                        className="text-gray-400 hover:text-red-600 transition-colors p-1 rounded-full hover:bg-gray-100"
+                        title="Delete widget"
+                      >
+                        <svg 
+                          className="h-5 w-5" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round" 
+                            strokeWidth={2} 
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" 
+                          />
+                        </svg>
+                      </button>
+                    </div>
+
                     <div className="p-4 border-b border-gray-200">
-                      <h3 className="text-lg font-medium text-gray-900">
-                        {widget.name}
-                      </h3>
+                      <div className="flex justify-between items-center pr-8"> {/* Added pr-8 to account for delete button */}
+                        <h3 className="text-lg font-medium text-gray-900">
+                          {widget.name} (ID: {widget.id}) {/* Add ID for debugging */}
+                        </h3>
+                      </div>
                       <p className="text-sm text-gray-500 mt-1">
                         {widget.natural_language_query}
                       </p>
