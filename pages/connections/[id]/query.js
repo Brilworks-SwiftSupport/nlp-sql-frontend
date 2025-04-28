@@ -298,10 +298,12 @@ const QueryPage = () => {
                 rowCount={queryResult.row_count}
               />
               <div className="mt-6">
-                <ResultGraph
-                  data={queryResult.result}
-                  title="Query Results Visualization"
-                />
+              <ResultGraph
+                    data={queryResult.result}
+                    sql={queryResult.sql_query}
+                    title="Query Results Visualization"
+                    className="h-[400px]"
+                  />
               </div>
             </div>
           )}
