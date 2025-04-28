@@ -4,7 +4,6 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
 import Layout from '../../../../../components/layout/Layout';
-import QueryForm from '../../../../../components/query/QueryForm';
 import Button from '../../../../../components/common/Button';
 import Alert from '../../../../../components/common/Alert';
 import { dashboardAPI, queryAPI } from '../../../../../lib/api';
@@ -23,6 +22,33 @@ const DashboardEditPage = () => {
   const [messages, setMessages] = useState([]);
   const [currentMessage, setCurrentMessage] = useState('');
   const messagesEndRef = useRef(null);
+
+  // Resizable column state
+  const [leftWidth, setLeftWidth] = useState(350); // px
+  const [isResizing, setIsResizing] = useState(false);
+
+  // Mouse event handlers for resizing
+  const startResizing = () => setIsResizing(true);
+  const stopResizing = () => setIsResizing(false);
+  const handleMouseMove = (e) => {
+    if (!isResizing) return;
+    setLeftWidth(Math.max(220, Math.min(e.clientX, window.innerWidth - 220)));
+  };
+
+  // Attach/detach mousemove listeners
+  useEffect(() => {
+    if (isResizing) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', stopResizing);
+    } else {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', stopResizing);
+    }
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', stopResizing);
+    };
+  }, [isResizing]);
 
   // Load initial dashboard data
   useEffect(() => {
@@ -244,10 +270,12 @@ const DashboardEditPage = () => {
       <Head>
         <title>Edit Dashboard - {dashboard?.name || 'Loading...'}</title>
       </Head>
-
-      <div className="h-[calc(100vh-4rem)] flex overflow-hidden"> {/* Adjusted height */}
-        {/* Left Column - Chatbot Interface */}
-        <div className="w-1/3 bg-white border-r border-gray-200 flex flex-col">
+      <div className="flex flex-row h-[calc(100vh-4rem)] overflow-hidden bg-gray-50">
+        {/* Left Column: Data Assistant */}
+        <div
+          className="bg-white border-r border-gray-200 flex flex-col transition-all duration-200"
+          style={{ width: leftWidth, minWidth: 220, maxWidth: 600 }}
+        >
           <div className="p-4 border-b border-gray-200">
             <h1 className="text-xl font-semibold text-gray-900">Data Assistant</h1>
           </div>
@@ -296,9 +324,14 @@ const DashboardEditPage = () => {
             </form>
           </div>
         </div>
-
-        {/* Right Column - Results Display */}
-        <div className="flex-1 bg-gray-50 flex flex-col overflow-y-auto">
+        {/* Divider */}
+        <div
+          className="w-2 cursor-col-resize bg-gray-200 hover:bg-blue-300 transition"
+          onMouseDown={startResizing}
+          style={{ zIndex: 20 }}
+        />
+        {/* Right Column: Results */}
+        <div className="flex-1 flex flex-col overflow-y-auto">
           <div className="p-4 border-b border-gray-200 bg-white">
             <div className="flex justify-between items-center">
               <h1 className="text-xl font-semibold text-gray-900">Results</h1>

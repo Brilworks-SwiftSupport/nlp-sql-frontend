@@ -332,7 +332,7 @@ const DashboardView = () => {
           )}
 
           {/* Widgets Grid */}
-          <div className="relative min-h-[500px] overflow-auto">
+          <div className="relative min-h-[500px] overflow-auto rounded-lg bg-white shadow">
             <ResponsiveGridLayout
               className="layout"
               layouts={layouts}
@@ -380,16 +380,16 @@ const DashboardView = () => {
                 );
               })}
             </ResponsiveGridLayout>
-          </div>
 
-          {(!dashboard?.widgets || dashboard.widgets.length === 0) && (
-            <div className="text-center py-12">
-              <p className="text-gray-500">No widgets added to this dashboard yet.</p>
-              <Link href={`/connections/${connectionId}/dashboard/${dashboardId}/edit`}>
-                <Button variant="primary" className="mt-4">Add Widget</Button>
-              </Link>
-            </div>
-          )}
+            {(!dashboard?.widgets || dashboard.widgets.length === 0) && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/90 z-10">
+                <p className="text-gray-500 text-lg mb-4">No widgets added to this dashboard yet.</p>
+                <Link href={`/connections/${connectionId}/dashboard/${dashboardId}/edit`}>
+                  <Button variant="primary">Add Widget</Button>
+                </Link>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </Layout>
