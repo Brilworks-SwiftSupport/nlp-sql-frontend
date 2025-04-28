@@ -41,7 +41,7 @@ const DashboardEditPage = () => {
           setMessages(JSON.parse(savedMessages));
         }
       } catch (err) {
-        setError(err.response?.data?.message || 'Failed to load dashboard');
+        setError(err.response?.data?.message || '');
       } finally {
         setIsInitialLoading(false);
       }
@@ -72,6 +72,7 @@ const DashboardEditPage = () => {
       const response = await queryAPI.executeQuery(connectionId, query, pairs);
       
       if (response.status === 'success') {
+        console.log('Query result:', response);
         setQueryResult(response);
         return response;
       } else {
@@ -99,15 +100,51 @@ const DashboardEditPage = () => {
         h: 2
       };
 
+      // Prepare chart data structure
+      const chartData = chartConfig ? {
+        type: chartConfig.chartType || 'bar', // 'bar', 'line', 'doughnut'
+        data: result.result, // Store the actual data
+        labels: result.result.map(row => Object.values(row)[0]), // First column as labels
+        datasets: [{
+          data: result.result.map(row => Object.values(row)[1]), // Second column as values
+          backgroundColor: chartConfig.backgroundColor || 'rgba(54, 162, 235, 0.2)',
+          borderColor: chartConfig.borderColor || 'rgba(54, 162, 235, 1)',
+          borderWidth: chartConfig.borderWidth || 1
+        }],
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          },
+          plugins: {
+            legend: {
+              display: chartConfig.showLegend || false
+            },
+            title: {
+              display: true,
+              text: chartConfig.title || ''
+            }
+          }
+        }
+      } : null;
+
       const widgetData = {
         dashboard_id: dashboardId,
         name: `Widget ${widgets.length + 1}`,
         widget_type: chartConfig ? 'chart' : 'table',
         natural_language_query: query,
         sql_query: result.sql_query,
-        visualization_settings: chartConfig,
+        visualization_settings: {
+          chartType: chartConfig?.chartType || 'table',
+          chartData: chartData,
+          customSettings: chartConfig?.customSettings || {}
+        },
         position: position,
-        refresh_interval: 0 // Default to no auto-refresh
+        refresh_interval: 0, // Default to no auto-refresh
+        result_data: result.result // Store the actual result data
       };
 
       const response = await dashboardAPI.addWidget(widgetData);
@@ -115,9 +152,6 @@ const DashboardEditPage = () => {
       // Update local state with the new widget
       const newWidget = response.widget;
       setWidgets(prev => [...prev, newWidget]);
-      
-      // Show success message or handle UI updates
-      // You might want to add a toast notification here
       
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to add widget');
@@ -298,7 +332,7 @@ const DashboardEditPage = () => {
                           { type: 'chart', chartType: 'bar' }
                         )}
                       >
-                        Add as Chart
+                        Save Chart
                       </Button>
                     </div>
                   </div>
