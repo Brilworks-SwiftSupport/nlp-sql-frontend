@@ -6,6 +6,31 @@ import Layout from '../../../../../components/layout/Layout';
 import Button from '../../../../../components/common/Button';
 import Alert from '../../../../../components/common/Alert';
 import { dashboardAPI } from '../../../../../lib/api';
+import { Bar } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js';
+import { Responsive, WidthProvider } from 'react-grid-layout';
+import 'react-grid-layout/css/styles.css';
+import 'react-resizable/css/styles.css';
+
+// Register ChartJS components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
+);
+
+const ResponsiveGridLayout = WidthProvider(Responsive);
 
 const DashboardView = () => {
   const router = useRouter();
@@ -14,18 +39,72 @@ const DashboardView = () => {
   const [dashboard, setDashboard] = useState(null);
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [layouts, setLayouts] = useState({});
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Function to save layout to backend
+  const saveLayout = async (newLayouts) => {
+    try {
+      setIsSaving(true);
+      // Convert layouts to the format expected by your backend
+      const layoutUpdates = Object.values(newLayouts).map(layout => ({
+        widget_id: parseInt(layout.i),
+        position: {
+          x: layout.x,
+          y: layout.y,
+          w: layout.w,
+          h: layout.h
+        }
+      }));
+
+      // Call your API to save the layout
+      await dashboardAPI.updateLayout(dashboardId, layoutUpdates);
+    } catch (err) {
+      console.error('Error saving layout:', err);
+      setError('Failed to save layout changes');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   useEffect(() => {
-    if (!router.isReady) return; // wait for router to be ready
-  
+    if (!router.isReady) return;
     if (!connectionId || !dashboardId) return;
   
     const fetchDashboard = async () => {
       try {
         setIsLoading(true);
         const response = await dashboardAPI.getDashboard(dashboardId);
-        console.log('Full dashboard response:', response);
         setDashboard(response.dashboard.dashboard);
+        
+        // Initialize layouts from widget positions with 3x3 grid
+        const initialLayouts = {};
+        response.dashboard.dashboard.widgets.forEach((widget, index) => {
+          const chartData = widget.visualization_settings?.chartData;
+          const isSingleValue = chartData?.data?.length === 1 && 
+            Object.keys(chartData.data[0]).length === 1;
+          
+          // Calculate position in 3x3 grid
+          const gridX = index % 3;
+          const gridY = Math.floor(index / 3);
+          
+          const layout = {
+            i: widget.id.toString(),
+            x: widget.position?.x || gridX * 4, // 4 columns per widget in 3x3 grid
+            y: widget.position?.y || gridY * 4, // 4 rows per widget in 3x3 grid
+            w: widget.position?.w || 4, // Fixed width for 3x3 grid
+            h: widget.position?.h || 4, // Fixed height for 3x3 grid
+            minW: 4,
+            minH: 4,
+            maxW: 12,
+            maxH: 8,
+            static: false
+          };
+          
+          initialLayouts[widget.id] = layout;
+        });
+        
+        setLayouts(initialLayouts);
       } catch (err) {
         console.error('Error fetching dashboard:', err);
         setError(err.response?.data?.message || err.message || 'Failed to load dashboard');
@@ -36,88 +115,91 @@ const DashboardView = () => {
   
     fetchDashboard();
   }, [router.isReady, connectionId, dashboardId]);
-  
 
   // Function to render a metric display for single value data
   const renderMetricDisplay = (widget) => {
-    const chartData = widget.visualization_settings?.chartData?.data || [];
-    
-    if (chartData.length === 0) {
-      return (
-        <div className="flex items-center justify-center h-full bg-gray-50 rounded-md">
-          <p className="text-gray-500">No data available</p>
-        </div>
-      );
-    }
+    const data = widget.visualization_settings?.chartData?.data?.[0] || {};
+    const value = Object.values(data)[0];
+    const label = Object.keys(data)[0];
 
-    // For single value widgets (like count queries)
-    if (chartData.length === 1) {
-      const key = Object.keys(chartData[0])[0];
-      const value = chartData[0][key];
-      
-      return (
-        <div className="flex flex-col items-center justify-center h-full">
-          <p className="text-sm text-gray-500">{key}</p>
-          <p className="text-4xl font-bold text-blue-600">{value}</p>
-        </div>
-      );
-    }
-
-    // For multiple data points, display as a simple table
     return (
-      <div className="overflow-auto h-full">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              {Object.keys(chartData[0]).map((key) => (
-                <th 
-                  key={key}
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
-                  {key}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {chartData.map((row, index) => (
-              <tr key={index}>
-                {Object.entries(row).map(([key, value]) => (
-                  <td 
-                    key={key}
-                    className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"
-                  >
-                    {value}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="flex flex-col items-center justify-center h-full p-4">
+        <p className="text-sm text-gray-500">{label}</p>
+        <p className="text-4xl font-bold text-blue-600">{value}</p>
       </div>
     );
   };
 
-  // Custom simple bar chart using HTML/CSS
-  const SimpleBarChart = ({ data }) => {
-    if (!data || data.length === 0) return null;
-    
-    const key = Object.keys(data[0])[0];
-    const value = data[0][key];
-    const maxValue = 300; // Set a reasonable max for the bar scale
-    const percentage = (value / maxValue) * 100;
-    
+  // Function to render a bar chart for time series data
+  const renderBarChart = (widget) => {
+    const chartData = widget.visualization_settings?.chartData;
+    if (!chartData) return null;
+
+    const data = {
+      labels: chartData.labels,
+      datasets: [{
+        label: widget.name,
+        data: chartData.labels,
+        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+        borderColor: 'rgba(54, 162, 235, 1)',
+        borderWidth: 1,
+      }]
+    };
+
+    const options = {
+      ...chartData.options,
+      maintainAspectRatio: false,
+      responsive: true,
+      plugins: {
+        ...chartData.options.plugins,
+        legend: {
+          display: false
+        }
+      },
+      layout: {
+        padding: {
+          left: 20,
+          right: 20,
+          top: 20,
+          bottom: 20
+        }
+      },
+      scales: {
+        x: {
+          display: true,
+          grid: {
+            display: true
+          },
+          ticks: {
+            maxRotation: 45,
+            minRotation: 45,
+            padding: 10
+          }
+        },
+        y: {
+          display: true,
+          grid: {
+            display: true
+          },
+          ticks: {
+            padding: 10
+          }
+        }
+      }
+    };
+
     return (
-      <div className="pt-4">
-        <div className="mb-1 text-sm font-medium text-gray-700">{key}: {value}</div>
-        <div className="w-full bg-gray-200 rounded-full h-4">
-          <div 
-            className="bg-blue-600 h-4 rounded-full" 
-            style={{ width: `${Math.min(percentage, 100)}%` }}
-          ></div>
+      <div className="h-full p-6 flex flex-col">
+        <div className="flex-1 relative">
+          <Bar data={data} options={options} />
         </div>
       </div>
     );
+  };
+
+  const onLayoutChange = (layout, layouts) => {
+    // Save layout changes
+    saveLayout(layouts);
   };
 
   if (isLoading) {
@@ -169,41 +251,46 @@ const DashboardView = () => {
           )}
 
           {/* Widgets Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <ResponsiveGridLayout
+            className="layout"
+            layouts={layouts}
+            breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
+            cols={{ lg: 3, md: 3, sm: 3, xs: 3, xxs: 3 }}
+            rowHeight={450}
+            onLayoutChange={onLayoutChange}
+            isDraggable={true}
+            isResizable={true}
+            margin={[12, 21]}
+            containerPadding={[12, 12]}
+            autoSize={true}
+            compactType="vertical"
+            preventCollision={true}
+          >
             {dashboard?.widgets?.map((widget) => {
-              const chartData = widget.visualization_settings?.chartData?.data || [];
-              const chartType = widget.visualization_settings?.chartType || 'bar';
+              const chartData = widget.visualization_settings?.chartData;
+              const isSingleValue = chartData?.data?.length === 1 && 
+                Object.keys(chartData.data[0]).length === 1;
               
               return (
                 <div 
                   key={widget.id}
-                  className="bg-white shadow rounded-lg overflow-hidden"
+                  className="bg-white shadow rounded-lg overflow-hidden h-full"
                 >
-                  <div className="p-6">
-                    {/* <div className="mb-4">
-                      <h3 className="text-lg font-medium text-gray-900">
-                        {widget.name}
-                      </h3>
-                      <p className="text-sm text-gray-500 mt-1">
-                        {widget.natural_language_query}
-                      </p>
-                    </div> */}
-
-                
-                    <div className="h-64 flex flex-col">
-                      {/* For metric-style display */}
-                      {renderMetricDisplay(widget)}
-                      
-                      {/* For simple bar chart display */}
-                      {chartType === 'bar' && chartData.length === 1 && (
-                        <SimpleBarChart data={chartData} />
-                      )}
-                    </div>
+                  <div className="p-4 border-b border-gray-200">
+                    <h3 className="text-lg font-medium text-gray-900">
+                      {widget.name}
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {widget.natural_language_query}
+                    </p>
+                  </div>
+                  <div className="h-[calc(100%-80px)]">
+                    {isSingleValue ? renderMetricDisplay(widget) : renderBarChart(widget)}
                   </div>
                 </div>
               );
             })}
-          </div>
+          </ResponsiveGridLayout>
 
           {(!dashboard?.widgets || dashboard.widgets.length === 0) && (
             <div className="text-center py-12">
