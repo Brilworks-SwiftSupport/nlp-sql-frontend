@@ -121,39 +121,11 @@ const ConnectionDashboard = () => {
                         )}
                       </div>
 
-                      <div className="border-t border-gray-200 pt-4">
-                        <div className="text-sm text-gray-500 mb-4 font-mono bg-gray-50 p-2 rounded">
-                          {dashboard.natural_language_query}
-                        </div>
-                      </div>
                       
-                      {/* Results Display */}
-                      <div className="space-y-4">
-                        {/* Table View */}
-                        <div className="h-40 overflow-auto">
-                          <ResultTable
-                            data={dashboard.result}
-                            rowCount={dashboard.row_count}
-                            minimal={true}
-                          />
-                        </div>
-
-                        {/* Graph View - Only show if data is suitable for visualization */}
-                        {canVisualize(dashboard.result) && (
-                          <div className="h-40">
-                            <ResultGraph
-                              data={dashboard.result}
-                              title="Visualization"
-                              minimal={true}
-                            />
-                          </div>
-                        )}
-                      </div>
+                     
 
                       <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-200">
-                        <span className="text-sm text-gray-500">
-                          Rows: {dashboard.row_count}
-                        </span>
+                       
                         <Button
                           variant="outline"
                           size="small"
