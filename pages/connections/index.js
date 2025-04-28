@@ -28,7 +28,7 @@ const ConnectionsPage = () => {
         setIsLoading(true);
         
         // Fetch connections
-        const connectionsResponse = await connectionAPI.getAll();
+        const connectionsResponse = await connectionAPI.getConnections();
         if (connectionsResponse.status === "success") {
           // Sort connections by created_at in descending order
           const sortedConnections = connectionsResponse.connections.sort((a, b) => 
