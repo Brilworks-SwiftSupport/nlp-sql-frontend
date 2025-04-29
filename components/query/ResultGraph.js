@@ -51,6 +51,20 @@ const ResultGraph = ({
     );
     const nonNumericColumns = keys.filter(key => !numericColumns.includes(key));
 
+    // Handle single row with multiple numeric columns
+    if (data.length === 1 && numericColumns.length > 1) {
+      return {
+        labels: numericColumns,
+        datasets: [{
+          label: 'Values',
+          data: numericColumns.map(column => parseFloat(firstRow[column])),
+          backgroundColor: numericColumns.map(() => `hsla(${Math.random() * 360}, 70%, 50%, 0.6)`),
+          borderColor: numericColumns.map(() => `hsla(${Math.random() * 360}, 70%, 50%, 1)`),
+          borderWidth: 1,
+        }],
+      };
+    }
+
     if (numericColumns.length >= 1 && nonNumericColumns.length >= 1) {
       const labels = data.map(row => row[nonNumericColumns[0]]);
       const datasets = numericColumns.map(column => ({

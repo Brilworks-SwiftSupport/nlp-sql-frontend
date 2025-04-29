@@ -127,52 +127,44 @@ const DashboardEditPage = () => {
       };
 
       // Prepare chart data structure
-      const chartData = chartConfig ? {
-        type: chartConfig.chartType || 'bar', // 'bar', 'line', 'doughnut'
-        data: result.result, // Store the actual data
-        labels: result.result.map(row => Object.values(row)[0]), // First column as labels
-        datasets: [{
-          data: result.result.map(row => Object.values(row)[1]), // Second column as values
-          backgroundColor: chartConfig.backgroundColor || 'rgba(54, 162, 235, 0.2)',
-          borderColor: chartConfig.borderColor || 'rgba(54, 162, 235, 1)',
-          borderWidth: chartConfig.borderWidth || 1
-        }],
+      const chartData = {
+        type: chartConfig?.chartType || 'bar',
+        data: result.result, // Store the raw data
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: chartConfig?.showLegend || false
+            },
+            title: {
+              display: true,
+              text: query
+            }
+          },
           scales: {
             y: {
               beginAtZero: true
             }
-          },
-          plugins: {
-            legend: {
-              display: chartConfig.showLegend || false
-            },
-            title: {
-              display: true,
-              text: chartConfig.title || ''
-            }
           }
         }
-      } : null;
+      };
 
       const widgetData = {
         dashboard_id: dashboardId,
-        name: `Widget ${widgets.length + 1}`,
-        widget_type: chartConfig ? 'chart' : 'table',
+        name: query,
+        widget_type: 'chart',
         natural_language_query: query,
         sql_query: result.sql_query,
         visualization_settings: {
-          chartType: chartConfig?.chartType || 'table',
-          chartData: chartData,
-          customSettings: chartConfig?.customSettings || {}
+          chartType: chartConfig?.chartType || 'bar',
+          chartData: chartData
         },
         position: position,
-        refresh_interval: 0, // Default to no auto-refresh
-        result_data: result.result // Store the actual result data
+        refresh_interval: 0
       };
 
+      console.log('Adding widget with data:', widgetData);
       const response = await dashboardAPI.addWidget(widgetData);
       
       // Update local state with the new widget
@@ -180,6 +172,7 @@ const DashboardEditPage = () => {
       setWidgets(prev => [...prev, newWidget]);
       
     } catch (err) {
+      console.error('Error adding widget:', err);
       setError(err.response?.data?.message || 'Failed to add widget');
     }
   };
@@ -357,35 +350,85 @@ const DashboardEditPage = () => {
                     <h3 className="text-lg font-medium text-gray-900">Data Visualization</h3>
                     <div className="flex space-x-3">
                       <Button
-                        onClick={() => handleAddWidget(
-                          queryResult.natural_language_query, 
-                          queryResult,
-                          { 
-                            type: 'chart', 
-                            chartType: 'bar',
-                            title: 'Monthly User Signups in 2024',
-                            showLegend: true,
-                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                            borderColor: 'rgba(54, 162, 235, 1)',
-                            borderWidth: 1
+                        onClick={() => {
+                          // Prepare visualization settings based on data structure
+                          const data = queryResult.result;
+                          const firstRow = data[0];
+                          const keys = Object.keys(firstRow);
+                          
+                          // Find numeric and non-numeric columns
+                          const numericColumns = keys.filter(key => 
+                            typeof firstRow[key] === 'number' || !isNaN(parseFloat(firstRow[key]))
+                          );
+                          const nonNumericColumns = keys.filter(key => !numericColumns.includes(key));
+                          
+                          // Determine chart type and structure based on data
+                          let chartConfig;
+                          if (data.length === 1) {
+                            // Single row data - use bar chart for comparison
+                            chartConfig = {
+                              type: 'chart',
+                              chartType: 'bar',
+                              title: queryResult.natural_language_query,
+                              showLegend: false,
+                              backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                              borderColor: 'rgba(54, 162, 235, 1)',
+                              borderWidth: 1,
+                              customSettings: {
+                                dataStructure: 'single-row'
+                              }
+                            };
+                          } else if (nonNumericColumns.length >= 1 && numericColumns.length >= 1) {
+                            // Time series or categorical data
+                            chartConfig = {
+                              type: 'chart',
+                              chartType: 'bar',
+                              title: queryResult.natural_language_query,
+                              showLegend: numericColumns.length > 1,
+                              backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                              borderColor: 'rgba(54, 162, 235, 1)',
+                              borderWidth: 1,
+                              customSettings: {
+                                dataStructure: 'time-series',
+                                categoryColumn: nonNumericColumns[0],
+                                valueColumns: numericColumns
+                              }
+                            };
                           }
-                        )}
+
+                          handleAddWidget(
+                            queryResult.natural_language_query,
+                            queryResult,
+                            chartConfig
+                          );
+                        }}
                       >
                         Save Chart
                       </Button>
                     </div>
                   </div>
-                  {queryResult?.result ? (
-                    <ResultGraph
-                      data={queryResult.result.map(row => ({
-                        ...row,
-                        SignupMonth: new Date(2024, row.SignupMonth - 1).toLocaleString('default', { month: 'long' }),
-                        UserCount: parseInt(row.UserCount)
-                      }))}
-                      sql={queryResult.sql_query}
-                      title="Monthly User Signups in 2024"
-                      className="h-[400px]"
-                    />
+                  {queryResult?.result && queryResult.result.length > 0 ? (
+                    <>
+                      {console.log('Query Result Data:', {
+                        data: queryResult.result,
+                        firstRow: queryResult.result[0],
+                        columns: Object.keys(queryResult.result[0]),
+                        numericColumns: Object.keys(queryResult.result[0]).filter(key => 
+                          typeof queryResult.result[0][key] === 'number' || !isNaN(parseFloat(queryResult.result[0][key]))
+                        ),
+                        nonNumericColumns: Object.keys(queryResult.result[0]).filter(key => 
+                          typeof queryResult.result[0][key] !== 'number' && isNaN(parseFloat(queryResult.result[0][key]))
+                        )
+                      })}
+                      <ResultGraph
+                        data={queryResult.result}
+                        sql={queryResult.sql_query}
+                        title={queryResult.natural_language_query || "Query Results Visualization"}
+                        className="h-[400px]"
+                        maxHeight={400}
+                        chartType="bar" // Force bar chart for comparison
+                      />
+                    </>
                   ) : (
                     <div className="text-center text-gray-500 py-8">
                       No data available for visualization

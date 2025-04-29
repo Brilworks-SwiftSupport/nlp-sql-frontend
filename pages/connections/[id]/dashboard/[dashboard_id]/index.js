@@ -263,58 +263,71 @@ const DashboardView = () => {
   // Function to render a bar chart for time series data
   const renderBarChart = (widget) => {
     const chartData = widget.visualization_settings?.chartData;
-    if (!chartData) return null;
+    console.log('Widget data:', widget);
+    console.log('Chart data:', chartData);
+    
+    if (!chartData || !chartData.data) {
+      console.log('No chart data available');
+      return null;
+    }
 
-    // Handle different types of data
+    // Prepare data based on the data structure type
     let labels = [];
     let datasets = [];
 
-    // Case 1: Monthly data with SignupMonth
-    if (chartData.data[0]?.SignupMonth) {
-      labels = chartData.data.map(row => 
-        new Date(2024, row.SignupMonth - 1).toLocaleString('default', { month: 'long' })
-      );
-      datasets = [{
-        label: 'User Count',
-        data: chartData.data.map(row => row.UserCount),
-        backgroundColor: 'rgba(54, 162, 235, 0.2)',
-        borderColor: 'rgba(54, 162, 235, 1)',
-        borderWidth: 1
-      }];
-    }
-    // Case 2: Single value metrics (like total agents)
-    else if (chartData.data.length === 1) {
-      const row = chartData.data[0];
-      labels = Object.keys(row);
-      datasets = [{
-        label: 'Count',
-        data: Object.values(row),
-        backgroundColor: 'rgba(54, 162, 235, 0.2)',
-        borderColor: 'rgba(54, 162, 235, 1)',
-        borderWidth: 1
-      }];
-    }
-    // Case 3: Multiple metrics comparison
-    else {
-      const row = chartData.data[0];
+    // Handle the data structure from the backend
+    const data = chartData.data;
+    console.log('Processing data:', data);
+
+    if (data.length === 1) {
+      // Single row data - show all fields as separate bars
+      const row = data[0];
       labels = Object.keys(row);
       datasets = [{
         label: 'Values',
-        data: Object.values(row),
+        data: Object.values(row).map(v => typeof v === 'string' ? parseFloat(v) : v),
         backgroundColor: 'rgba(54, 162, 235, 0.2)',
         borderColor: 'rgba(54, 162, 235, 1)',
         borderWidth: 1
       }];
+    } else {
+      // Multiple rows - find numeric and non-numeric columns
+      const firstRow = data[0];
+      const keys = Object.keys(firstRow);
+      const numericColumns = keys.filter(key => 
+        !isNaN(firstRow[key]) || typeof firstRow[key] === 'number'
+      );
+      const categoryColumn = keys.find(key => 
+        isNaN(firstRow[key]) || keys.indexOf(key) === 0
+      );
+
+      labels = data.map(row => {
+        const value = row[categoryColumn];
+        // If it looks like a month number, convert to month name
+        if (!isNaN(value) && value >= 1 && value <= 12) {
+          return new Date(2024, value - 1).toLocaleString('default', { month: 'long' });
+        }
+        return value?.toString() || '';
+      });
+
+      datasets = numericColumns.map(column => ({
+        label: column,
+        data: data.map(row => typeof row[column] === 'string' ? parseFloat(row[column]) : row[column]),
+        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+        borderColor: 'rgba(54, 162, 235, 1)',
+        borderWidth: 1
+      }));
     }
 
-    const data = { labels, datasets };
+    console.log('Prepared chart data:', { labels, datasets });
 
     const options = {
       maintainAspectRatio: false,
       responsive: true,
       plugins: {
         legend: {
-          display: false // Hide legend for single series
+          display: datasets.length > 1,
+          position: 'top'
         },
         title: {
           display: true,
@@ -330,13 +343,13 @@ const DashboardView = () => {
           beginAtZero: true,
           title: {
             display: true,
-            text: 'Count'
+            text: datasets[0]?.label || 'Value'
           }
         },
         x: {
           title: {
             display: true,
-            text: chartData.data[0]?.SignupMonth ? 'Month' : 'Category'
+            text: 'Category'
           }
         }
       }
@@ -345,7 +358,7 @@ const DashboardView = () => {
     return (
       <div className="h-full p-6 flex flex-col">
         <div className="flex-1 relative">
-          <Bar data={data} options={options} />
+          <Bar data={{ labels, datasets }} options={options} />
         </div>
       </div>
     );
