@@ -426,7 +426,6 @@ const DashboardEditPage = () => {
                         title={queryResult.natural_language_query || "Query Results Visualization"}
                         className="h-[400px]"
                         maxHeight={400}
-                        chartType="bar" // Force bar chart for comparison
                       />
                     </>
                   ) : (

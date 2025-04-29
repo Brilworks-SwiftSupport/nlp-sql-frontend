@@ -72,6 +72,19 @@ const ConnectionCard = ({ connection }) => {
                 </dd>
               </div>
             </div>
+            <div className="rounded-lg bg-gray-50 p-3">
+              <div className="flex justify-between">
+                <dt className="text-sm font-medium text-gray-500">Created</dt>
+                <dd
+                  className="text-sm text-gray-900 text-right"
+                  title={new Date(connection.created_at).toLocaleString()}
+                >
+                  <div className="max-w-[180px] truncate">
+                    {new Date(connection.created_at).toLocaleString()}
+                  </div>
+                </dd>
+              </div>
+            </div>
           </dl>
         </div>
       </div>
