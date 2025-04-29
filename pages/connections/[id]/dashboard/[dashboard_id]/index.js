@@ -6,15 +6,18 @@ import Layout from '../../../../../components/layout/Layout';
 import Button from '../../../../../components/common/Button';
 import Alert from '../../../../../components/common/Alert';
 import { dashboardAPI } from '../../../../../lib/api';
-import { Bar } from 'react-chartjs-2';
+import { Bar, Line, Doughnut } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   BarElement,
+  LineElement,
+  PointElement,
+  ArcElement,
   Title,
   Tooltip,
-  Legend,
+  Legend
 } from 'chart.js';
 import { Responsive, WidthProvider } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
@@ -25,6 +28,9 @@ ChartJS.register(
   CategoryScale,
   LinearScale,
   BarElement,
+  LineElement,
+  PointElement,
+  ArcElement,
   Title,
   Tooltip,
   Legend
@@ -43,6 +49,7 @@ const DashboardView = () => {
   const [isSaving, setIsSaving] = useState(false);
   const isInitialLoad = useRef(true);
   const prevLayouts = useRef({});
+  const [widgetChartTypes, setWidgetChartTypes] = useState({});
 
   const handleDeleteWidget = async (widgetId) => {
     console.log('Deleting widget with ID:', widgetId); // Add this for debugging
@@ -260,11 +267,18 @@ const DashboardView = () => {
     );
   };
 
-  // Function to render a bar chart for time series data
-  const renderBarChart = (widget) => {
+  // Function to handle chart type changes
+  const handleChartTypeChange = (widgetId, chartType) => {
+    setWidgetChartTypes(prev => ({
+      ...prev,
+      [widgetId]: chartType
+    }));
+  };
+
+  // Function to render a chart for time series data
+  const renderChart = (widget) => {
     const chartData = widget.visualization_settings?.chartData;
-    console.log('Widget data:', widget);
-    console.log('Chart data:', chartData);
+    const currentChartType = widgetChartTypes[widget.id] || 'bar';
     
     if (!chartData || !chartData.data) {
       console.log('No chart data available');
@@ -357,8 +371,34 @@ const DashboardView = () => {
 
     return (
       <div className="h-full p-6 flex flex-col">
+        {/* Chart Type Selector with draggable handle prevention */}
+        <div className="flex justify-end space-x-2 mb-4 relative z-10" onMouseDown={(e) => e.stopPropagation()}>
+          <Button
+            size="sm"
+            variant={currentChartType === 'bar' ? 'primary' : 'outline'}
+            onClick={() => handleChartTypeChange(widget.id, 'bar')}
+          >
+            Bar
+          </Button>
+          <Button
+            size="sm"
+            variant={currentChartType === 'line' ? 'primary' : 'outline'}
+            onClick={() => handleChartTypeChange(widget.id, 'line')}
+          >
+            Line
+          </Button>
+          <Button
+            size="sm"
+            variant={currentChartType === 'doughnut' ? 'primary' : 'outline'}
+            onClick={() => handleChartTypeChange(widget.id, 'doughnut')}
+          >
+            Doughnut
+          </Button>
+        </div>
         <div className="flex-1 relative">
-          <Bar data={{ labels, datasets }} options={options} />
+          {currentChartType === 'bar' && <Bar data={{ labels, datasets }} options={options} />}
+          {currentChartType === 'line' && <Line data={{ labels, datasets }} options={options} />}
+          {currentChartType === 'doughnut' && <Doughnut data={{ labels, datasets }} options={options} />}
         </div>
       </div>
     );
@@ -471,6 +511,7 @@ const DashboardView = () => {
               useCSSTransforms={true}
               isBounded={false}
               style={{ minHeight: '100%' }}
+              draggableHandle=".drag-handle"
             >
               {dashboard?.widgets?.map((widget) => {
                 const chartData = widget.visualization_settings?.chartData;
@@ -517,7 +558,7 @@ const DashboardView = () => {
                       </button>
                     </div>
 
-                    <div className="p-4 border-b border-gray-200">
+                    <div className="p-4 border-b border-gray-200 drag-handle">
                       <div className="flex justify-between items-center pr-8"> {/* Added pr-8 to account for delete button */}
                         <h3 className="text-lg font-medium text-gray-900">
                           {widget.name}
@@ -528,7 +569,7 @@ const DashboardView = () => {
                       </p>
                     </div>
                     <div className="h-[calc(100%-80px)] overflow-auto">
-                      {isSingleValue ? renderMetricDisplay(widget) : renderBarChart(widget)}
+                      {isSingleValue ? renderMetricDisplay(widget) : renderChart(widget)}
                     </div>
                   </div>
                 );
