@@ -21,7 +21,7 @@ const VoiceMode = ({
 
   useEffect(() => {
     // Initialize Socket.IO connection
-    socketRef.current = io('http://127.0.0.1:5000', {
+    socketRef.current = io(process.env.SOCKET_API_URL || 'http://127.0.0.1:5000', {
       path: '/socket.io',
       transports: ['websocket'],
     });
