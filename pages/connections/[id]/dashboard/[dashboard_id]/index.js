@@ -79,13 +79,28 @@ const DashboardView = () => {
   const saveLayout = async (newLayouts, oldLayouts) => {
     try {
       setIsSaving(true);
-      // Only include widgets whose position or size has changed
-      const changedWidgets = Object.values(newLayouts)
+      
+      // Get the current breakpoint's layout (typically 'lg' for large screens)
+      const currentLayout = newLayouts.lg || Object.values(newLayouts)[0];
+      
+      // Create a map of the old layouts for comparison
+      const oldLayoutMap = {};
+      Object.values(oldLayouts).forEach(layout => {
+        layout.forEach(item => {
+          oldLayoutMap[item.i] = item;
+        });
+      });
+
+      // Find widgets whose position or size has changed
+      const changedWidgets = currentLayout
         .filter(layout => {
-          const prev = oldLayouts[layout.i];
-          return !prev || prev.x !== layout.x || prev.y !== layout.y || prev.w !== layout.w || prev.h !== layout.h;
+          const oldLayout = oldLayoutMap[layout.i];
+          return !oldLayout || 
+                 oldLayout.x !== layout.x || 
+                 oldLayout.y !== layout.y || 
+                 oldLayout.w !== layout.w || 
+                 oldLayout.h !== layout.h;
         })
-        .filter(layout => layout.i && !isNaN(parseInt(layout.i)))
         .map(layout => ({
           widget_id: parseInt(layout.i),
           position: {
@@ -99,25 +114,45 @@ const DashboardView = () => {
             height: layout.h
           }
         }));
-      if (changedWidgets.length === 0) return; // No changes
-      const layout = { widgets: changedWidgets };
-      await dashboardAPI.updateLayout(dashboardId, layout);
-      // Update dashboard state for changed widgets only
-      const updatedDashboard = { ...dashboard };
-      updatedDashboard.widgets = updatedDashboard.widgets.map(widget => {
-        const changed = changedWidgets.find(w => w.widget_id === widget.id);
-        if (changed) {
-          return {
-            ...widget,
-            position: changed.position,
-            size: changed.size
-          };
-        }
-        return widget;
-      });
-      setDashboard(updatedDashboard);
-      setLayouts(newLayouts);
-      prevLayouts.current = { ...newLayouts };
+
+      if (changedWidgets.length === 0) {
+        console.log('No layout changes detected');
+        return;
+      }
+
+      console.log('Saving layout changes:', changedWidgets);
+      
+      // Match the backend API's expected structure
+      const payload = {
+        widgets: changedWidgets
+      };
+
+      const response = await dashboardAPI.updateLayout(dashboardId, payload);
+
+      if (response.status === 'success') {
+        console.log('Layout updated successfully');
+        // Update the previous layouts reference
+        prevLayouts.current = { ...newLayouts };
+        
+        // Update the dashboard state with new positions
+        const updatedDashboard = { ...dashboard };
+        updatedDashboard.widgets = updatedDashboard.widgets.map(widget => {
+          const changed = changedWidgets.find(w => w.widget_id === widget.id);
+          if (changed) {
+            return {
+              ...widget,
+              position: changed.position,
+              size: changed.size
+            };
+          }
+          return widget;
+        });
+        setDashboard(updatedDashboard);
+      } else {
+        console.error('Failed to update layout:', response);
+        setError('Failed to save layout changes');
+      }
+
     } catch (err) {
       console.error('Error saving layout:', err);
       setError('Failed to save layout changes');
@@ -292,26 +327,39 @@ const DashboardView = () => {
     );
   };
 
-  // Only call saveLayout if not initial load and if there are changes
+  // Function to handle layout changes (both drag and resize)
   const onLayoutChange = (layout, layouts) => {
-    if (isInitialLoad.current) return;
+    if (isInitialLoad.current) {
+      isInitialLoad.current = false;
+      return;
+    }
+    
+    // Save layout changes
     saveLayout(layouts, prevLayouts.current);
   };
 
-  // Function to handle widget resize
-  const handleResize = (layout, oldItem, newItem) => {
-    // Update the layout state immediately
-    const updatedLayouts = { ...layouts };
-    updatedLayouts[newItem.i] = {
-      ...newItem,
-      minW: 1,
-      minH: 1,
-      maxW: 3,
-      maxH: Infinity
+  // Function to handle drag stop
+  const onDragStop = (layout, oldItem, newItem, placeholder, e, element) => {
+    const layouts = {
+      lg: layout,
+      md: layout,
+      sm: layout,
+      xs: layout,
+      xxs: layout
     };
-    setLayouts(updatedLayouts);
-    // Save the changes
-    saveLayout(updatedLayouts, prevLayouts.current);
+    saveLayout(layouts, prevLayouts.current);
+  };
+
+  // Function to handle resize stop
+  const onResizeStop = (layout, oldItem, newItem, placeholder, e, element) => {
+    const layouts = {
+      lg: layout,
+      md: layout,
+      sm: layout,
+      xs: layout,
+      xxs: layout
+    };
+    saveLayout(layouts, prevLayouts.current);
   };
 
   if (isLoading) {
@@ -363,7 +411,7 @@ const DashboardView = () => {
           )}
 
           {/* Widgets Grid */}
-          <div className="relative min-h-[500px] overflow-auto rounded-lg bg-white shadow">
+          <div className="relative min-h-[800px] overflow-auto rounded-lg bg-white shadow">
             <ResponsiveGridLayout
               className="layout"
               layouts={layouts}
@@ -371,7 +419,8 @@ const DashboardView = () => {
               cols={{ lg: 3, md: 3, sm: 3, xs: 3, xxs: 3 }}
               rowHeight={150}
               onLayoutChange={onLayoutChange}
-              onResize={handleResize}
+              onDragStop={onDragStop}
+              onResizeStop={onResizeStop}
               isDraggable={true}
               isResizable={true}
               margin={[12, 12]}
@@ -434,7 +483,7 @@ const DashboardView = () => {
                     <div className="p-4 border-b border-gray-200">
                       <div className="flex justify-between items-center pr-8"> {/* Added pr-8 to account for delete button */}
                         <h3 className="text-lg font-medium text-gray-900">
-                          {widget.name} (ID: {widget.id}) {/* Add ID for debugging */}
+                          {widget.name}
                         </h3>
                       </div>
                       <p className="text-sm text-gray-500 mt-1">
