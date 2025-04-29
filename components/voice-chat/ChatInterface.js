@@ -119,7 +119,7 @@ const ChatInterface = () => {
   useEffect(() => {
     const fetchConnections = async () => {
       try {
-        const response = await connectionAPI.getAll();
+        const response = await connectionAPI.getConnections();
         if (response.status === 'success') {
           setConnections(response.connections);
         }
