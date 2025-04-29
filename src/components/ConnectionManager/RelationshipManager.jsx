@@ -46,18 +46,7 @@ import VisualSchemaDesigner from './VisualSchemaDesigner';
 // Special columns that we know are typically used for relations in the database
 const COMMON_JOIN_COLUMNS = ['ClientID', 'ClientCompanyID', 'ID', 'DateCreated', 'DateModified'];
 
-// Ad spend tables that need relationships for union operations
-const AD_SPEND_TABLES = [
-  'Community', 
-  'ChallengeFree', 
-  'ChallengePaid', 
-  'ChallengeHybrid',
-  'LowTicketAcquisition', 
-  'HighTicketVSL', 
-  'InstagramDM', 
-  'WebinarBase', 
-  'WebinarAdvance'
-];
+
 
 export default function RelationshipManager({ 
   schema = {}, 
@@ -161,82 +150,13 @@ export default function RelationshipManager({
       }
     }
     
-    // Auto-suggest relationships for ad spend tables
-    const adSpendSuggestions = suggestAdSpendRelationships();
+
     
     setMissingRelationships(suggestions);
     setSuggestedRelationships([...suggestions, ...adSpendSuggestions]);
   };
   
-  // Auto-suggest relationships for ad spend tables
-  const suggestAdSpendRelationships = () => {
-    if (!schema) return [];
-    
-    const suggestions = [];
-    
-    // Get all selected ad spend tables
-    const selectedAdSpendTables = selectedTables.filter(table => 
-      AD_SPEND_TABLES.includes(table)
-    );
-    
-    if (selectedAdSpendTables.length > 1) {
-      // For each pair of ad spend tables, suggest ClientID and ClientCompanyID relationships
-      for (let i = 0; i < selectedAdSpendTables.length; i++) {
-        const sourceTable = selectedAdSpendTables[i];
-        
-        for (let j = i + 1; j < selectedAdSpendTables.length; j++) {
-          const targetTable = selectedAdSpendTables[j];
-          
-          // Check if both tables have ClientID
-          if (schema[sourceTable]?.columns?.some(col => col.name === 'ClientID') &&
-              schema[targetTable]?.columns?.some(col => col.name === 'ClientID')) {
-            
-            suggestions.push({
-              source_table: sourceTable,
-              source_column: 'ClientID',
-              target_table: targetTable,
-              target_column: 'ClientID',
-              relationship_type: 'union',
-              is_ad_spend: true
-            });
-          }
-          
-          // Check if both tables have ClientCompanyID
-          if (schema[sourceTable]?.columns?.some(col => col.name === 'ClientCompanyID') &&
-              schema[targetTable]?.columns?.some(col => col.name === 'ClientCompanyID')) {
-            
-            suggestions.push({
-              source_table: sourceTable,
-              source_column: 'ClientCompanyID',
-              target_table: targetTable,
-              target_column: 'ClientCompanyID',
-              relationship_type: 'union',
-              is_ad_spend: true
-            });
-          }
-          
-          // Check for date columns for filtering
-          const dateColumns = ['DateCreated', 'DateModified', 'Date'];
-          for (const dateCol of dateColumns) {
-            if (schema[sourceTable]?.columns?.some(col => col.name === dateCol) &&
-                schema[targetTable]?.columns?.some(col => col.name === dateCol)) {
-              
-              suggestions.push({
-                source_table: sourceTable,
-                source_column: dateCol,
-                target_table: targetTable,
-                target_column: dateCol,
-                relationship_type: 'union',
-                is_ad_spend: true
-              });
-            }
-          }
-        }
-      }
-    }
-    
-    return suggestions;
-  };
+  
   
   // Get available columns for a table, filtered to only include selected columns if provided
   const getAvailableColumns = (tableName) => {
@@ -551,45 +471,7 @@ export default function RelationshipManager({
           />
         </Tabs>
       </Box>
-      
-      {/* Ad Spend Quick Setup Alert */}
-      {selectedTables.some(table => AD_SPEND_TABLES.includes(table)) && (
-        <Box sx={{ mx: 2, mt: 1, mb: 2 }}>
-          <Alert 
-            severity="info" 
-            action={
-              <Button 
-                color="inherit" 
-                size="small" 
-                startIcon={<AutoFixHighIcon />}
-                onClick={() => {
-                  const adSpendSuggestions = suggestAdSpendRelationships();
-                  // Filter out suggestions that are already in the relationships
-                  const newSuggestions = adSpendSuggestions.filter(suggestion => 
-                    !relationships.some(rel => 
-                      rel.source_table === suggestion.source_table &&
-                      rel.source_column === suggestion.source_column &&
-                      rel.target_table === suggestion.target_table &&
-                      rel.target_column === suggestion.target_column
-                    )
-                  );
-                  
-                  // Add all new suggested relationships at once
-                  if (newSuggestions.length > 0) {
-                    onRelationshipsChange([...relationships, ...newSuggestions]);
-                  }
-                }}
-              >
-                Auto-Configure Ad Spend Tables
-              </Button>
-            }
-          >
-            <Typography variant="body2">
-              Ad spend tables detected. Use auto-configure to set up relationships for UNION ALL queries.
-            </Typography>
-          </Alert>
-        </Box>
-      )}
+   
 
       {/* Missing Relationships Alert */}
       {missingRelationships.length > 0 && (

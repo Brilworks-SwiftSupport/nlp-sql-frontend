@@ -7,6 +7,7 @@ import Layout from '../../../components/layout/Layout';
 import QueryForm from '../../../components/query/QueryForm';
 import SqlDisplay from '../../../components/query/SqlDisplay';
 import ResultTable from '../../../components/query/ResultTable';
+import ResultGraph from '../../../components/query/ResultGraph';
 import TableSelector from '../../../components/tables/TableSelector';
 import Button from '../../../components/common/Button';
 import Alert from '../../../components/common/Alert';
@@ -213,7 +214,7 @@ const QueryPage = () => {
           <div className="md:flex md:items-center md:justify-between">
             <div className="flex-1 min-w-0">
               <h1 className="text-2xl font-semibold text-gray-900">
-                {connection ? connection.name : 'Database'} - Natural Language Query
+                {connection ? connection.name : 'Database'} - Query To Database
               </h1>
             </div>
             <div className="mt-4 flex md:mt-0 md:ml-4 space-x-3">
@@ -296,6 +297,14 @@ const QueryPage = () => {
                 data={queryResult.result}
                 rowCount={queryResult.row_count}
               />
+              <div className="mt-6">
+              <ResultGraph
+                    data={queryResult.result}
+                    sql={queryResult.sql_query}
+                    title="Query Results Visualization"
+                    className="h-[400px]"
+                  />
+              </div>
             </div>
           )}
           

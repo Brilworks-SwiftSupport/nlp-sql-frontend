@@ -65,6 +65,18 @@ const TableNode = memo(({ data, id }) => {
     });
   };
 
+  // Auto-select foreign keys (keeping this for consistency with existing behavior)
+  useEffect(() => {
+    const foreignKeys = columns.filter(
+      col => (col.isForeignKey || col.name.toLowerCase().includes('_id') && col.name.toLowerCase() !== 'id') && 
+              !tableSelectedColumns.includes(col.name)
+    );
+    
+    foreignKeys.forEach(col => {
+      onColumnSelect(id, col.name, true);
+    });
+  }, [columns, tableSelectedColumns, id, onColumnSelect]);
+
   // Compute "Select All" checkbox state
   const {
     allSelected,
@@ -85,20 +97,6 @@ const TableNode = memo(({ data, id }) => {
   const handleSelectAllToggle = (event) => {
     handleBulkColumnSelect(event.target.checked);
   };
-
-  // Auto-select foreign keys
-  useEffect(() => {
-    // Find foreign keys that aren't selected yet
-    const foreignKeys = columns.filter(
-      col => (col.isForeignKey || col.name.toLowerCase().includes('_id') && col.name.toLowerCase() !== 'id') && 
-              !tableSelectedColumns.includes(col.name)
-    );
-    
-    // Auto-select all foreign keys
-    foreignKeys.forEach(col => {
-      onColumnSelect(id, col.name, true);
-    });
-  }, [columns, tableSelectedColumns, id, onColumnSelect]);
 
   // Sort columns: Primary Keys at top, then Foreign Keys, then selected, 
   // then the rest alphabetically
