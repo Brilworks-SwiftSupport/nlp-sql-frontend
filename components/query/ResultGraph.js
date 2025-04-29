@@ -39,20 +39,43 @@ const ResultGraph = ({
   const [activeTab, setActiveTab] = useState('graph'); // 'graph' or 'data' or 'sql'
   const [copiedSQL, setCopiedSQL] = useState(false);
   
-  // Automatically determine the best chart type and data structure
+  // Enhanced chart data processing
   const chartData = useMemo(() => {
     if (!data || data.length === 0) return null;
 
     const firstRow = data[0];
     const keys = Object.keys(firstRow);
     
-    const numericColumns = keys.filter(key => 
-      typeof firstRow[key] === 'number' || !isNaN(parseFloat(firstRow[key]))
+    // Check for time-series data (looking for date/month columns)
+    const timeColumns = keys.filter(key => 
+      key.toLowerCase().includes('date') || 
+      key.toLowerCase().includes('month') || 
+      key.toLowerCase().includes('year')
     );
-    const nonNumericColumns = keys.filter(key => !numericColumns.includes(key));
+    
+    // Find numeric columns (excluding the time column)
+    const numericColumns = keys.filter(key => 
+      !timeColumns.includes(key) && 
+      (typeof firstRow[key] === 'number' || !isNaN(parseFloat(firstRow[key])))
+    );
 
-    // Handle single row with multiple numeric columns
-    if (data.length === 1 && numericColumns.length > 1) {
+    // If we have time-series data
+    if (timeColumns.length > 0 && numericColumns.length > 0) {
+      const timeColumn = timeColumns[0];
+      return {
+        labels: data.map(row => row[timeColumn]),
+        datasets: numericColumns.map(column => ({
+          label: column.replace(/([A-Z])/g, ' $1').trim(), // Add spaces before capital letters
+          data: data.map(row => parseFloat(row[column])),
+          backgroundColor: `hsla(${Math.random() * 360}, 70%, 50%, 0.6)`,
+          borderColor: `hsla(${Math.random() * 360}, 70%, 50%, 1)`,
+          borderWidth: 1,
+        })),
+      };
+    }
+
+    // Handle single row with multiple columns
+    if (data.length === 1) {
       return {
         labels: numericColumns,
         datasets: [{
@@ -65,42 +88,34 @@ const ResultGraph = ({
       };
     }
 
-    if (numericColumns.length >= 1 && nonNumericColumns.length >= 1) {
-      const labels = data.map(row => row[nonNumericColumns[0]]);
-      const datasets = numericColumns.map(column => ({
-        label: column,
-        data: data.map(row => parseFloat(row[column])),
-        backgroundColor: `hsla(${Math.random() * 360}, 70%, 50%, 0.6)`,
-        borderColor: `hsla(${Math.random() * 360}, 70%, 50%, 1)`,
-        borderWidth: 1,
-      }));
-
+    // Default case: use first non-numeric column as labels
+    const nonNumericColumns = keys.filter(key => !numericColumns.includes(key));
+    if (nonNumericColumns.length > 0 && numericColumns.length > 0) {
       return {
-        labels,
-        datasets,
-      };
-    }
-
-    if (numericColumns.length === 1 && data.length === 1) {
-      return {
-        labels: [nonNumericColumns[0] || 'Total'],
-        datasets: [{
-          data: [parseFloat(data[0][numericColumns[0]])],
-          backgroundColor: ['rgba(54, 162, 235, 0.6)'],
-          borderColor: ['rgba(54, 162, 235, 1)'],
+        labels: data.map(row => row[nonNumericColumns[0]]),
+        datasets: numericColumns.map(column => ({
+          label: column.replace(/([A-Z])/g, ' $1').trim(),
+          data: data.map(row => parseFloat(row[column])),
+          backgroundColor: `hsla(${Math.random() * 360}, 70%, 50%, 0.6)`,
+          borderColor: `hsla(${Math.random() * 360}, 70%, 50%, 1)`,
           borderWidth: 1,
-        }],
+        })),
       };
     }
 
     return null;
   }, [data]);
 
+  // Automatically determine the best chart type
   useEffect(() => {
     if (!chartData) return;
 
     if (chartData.datasets[0].data.length === 1) {
       setChartType('doughnut');
+    } else if (chartData.labels.some(label => 
+      label.includes('-') || label.includes('/') || label.toLowerCase().includes('month')
+    )) {
+      setChartType('line'); // Use line chart for time series
     } else if (chartData.labels.length > 10) {
       setChartType('line');
     } else {
