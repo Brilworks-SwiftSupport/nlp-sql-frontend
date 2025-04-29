@@ -793,7 +793,7 @@ const ConnectionManager = ({ onClose, connectionToEdit = null }) => {
         
         return (
           <Grid container spacing={2}>
-            <Grid item xs={12}>
+            <Grid item xs={12} width={'100%'}>
               <TableSelector
                 schema={schema}
                 selectedTables={connectionData.selected_tables}
@@ -870,7 +870,7 @@ const ConnectionManager = ({ onClose, connectionToEdit = null }) => {
   };
 
   return (
-    <Box sx={{ width: '100%' }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Paper elevation={0} sx={{ p: 3, mb: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
           <Typography variant="h5">

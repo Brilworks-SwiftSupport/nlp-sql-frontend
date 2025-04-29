@@ -17,25 +17,12 @@ import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import SaveIcon from '@mui/icons-material/Save';
 import SettingsIcon from '@mui/icons-material/Settings';
 import InfoIcon from '@mui/icons-material/Info';
+import SelectAllIcon from '@mui/icons-material/SelectAll';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import VisualSchemaDesigner from './VisualSchemaDesigner';
 
-// Array of ad spend tables for special handling
-const AD_SPEND_TABLES = [
-  'Community', 
-  'ChallengeFree', 
-  'ChallengePaid', 
-  'ChallengeHybrid',
-  'LowTicketAcquisition', 
-  'HighTicketVSL', 
-  'InstagramDM', 
-  'WebinarBase', 
-  'WebinarAdvance'
-];
 
 // Check if a table is an ad spend table
-const isAdSpendTable = (tableName) => {
-  return AD_SPEND_TABLES.includes(tableName);
-};
 
 const StandaloneSchemaDesigner = ({ 
   schema, 
@@ -51,120 +38,65 @@ const StandaloneSchemaDesigner = ({
   // Local state for selected columns - initialize with provided prop
   const [selectedColumns, setSelectedColumns] = useState(initialSelectedColumns || {});
   
-  // Check if we have ad spend tables selected
-  const hasAdSpendTables = selectedTables && selectedTables.some(table => isAdSpendTable(table));
-  
-  // Count how many ad spend tables are selected
-  const adSpendTableCount = selectedTables ? selectedTables.filter(table => isAdSpendTable(table)).length : 0;
-  
-  // Function to suggest ad spend relationships
-  const suggestAdSpendRelationships = () => {
-    if (!schema) return [];
+  // Modified function to handle selecting all columns
+  const handleSelectAllColumns = () => {
+    const newSelectedColumns = { ...selectedColumns };
     
-    const suggestions = [];
-    
-    // Get all selected ad spend tables
-    const selectedAdSpendTables = selectedTables.filter(table => 
-      AD_SPEND_TABLES.includes(table)
-    );
-    
-    if (selectedAdSpendTables.length > 1) {
-      // For each pair of ad spend tables, suggest ClientID and ClientCompanyID relationships
-      for (let i = 0; i < selectedAdSpendTables.length; i++) {
-        const sourceTable = selectedAdSpendTables[i];
+    // Iterate through all selected tables
+    selectedTables.forEach(tableName => {
+      if (schema[tableName]) {
+        // Get all columns including primary and foreign keys
+        const allColumns = schema[tableName].columns.map(col => col.name);
         
-        for (let j = i + 1; j < selectedAdSpendTables.length; j++) {
-          const targetTable = selectedAdSpendTables[j];
-          
-          // Check if both tables have ClientID
-          if (schema[sourceTable]?.columns?.some(col => col.name === 'ClientID') &&
-              schema[targetTable]?.columns?.some(col => col.name === 'ClientID')) {
-            
-            suggestions.push({
-              source_table: sourceTable,
-              source_column: 'ClientID',
-              target_table: targetTable,
-              target_column: 'ClientID',
-              relationship_type: 'union',
-              is_ad_spend: true
-            });
-          }
-          
-          // Check if both tables have ClientCompanyID
-          if (schema[sourceTable]?.columns?.some(col => col.name === 'ClientCompanyID') &&
-              schema[targetTable]?.columns?.some(col => col.name === 'ClientCompanyID')) {
-            
-            suggestions.push({
-              source_table: sourceTable,
-              source_column: 'ClientCompanyID',
-              target_table: targetTable,
-              target_column: 'ClientCompanyID',
-              relationship_type: 'union',
-              is_ad_spend: true
-            });
-          }
-          
-          // Check for date columns for filtering
-          const dateColumns = ['DateCreated', 'DateModified', 'Date'];
-          for (const dateCol of dateColumns) {
-            if (schema[sourceTable]?.columns?.some(col => col.name === dateCol) &&
-                schema[targetTable]?.columns?.some(col => col.name === dateCol)) {
-              
-              suggestions.push({
-                source_table: sourceTable,
-                source_column: dateCol,
-                target_table: targetTable,
-                target_column: dateCol,
-                relationship_type: 'union',
-                is_ad_spend: true
-              });
-            }
-          }
-        }
+        // Add all columns to the selection
+        newSelectedColumns[tableName] = allColumns;
       }
+    });
+    
+    // Update local state
+    setSelectedColumns(newSelectedColumns);
+    
+    // Notify parent component
+    if (onSelectedColumnsChange) {
+      onSelectedColumnsChange(newSelectedColumns);
     }
     
-    return suggestions;
+    // Force update the VisualSchemaDesigner by triggering a re-render
+    const event = new CustomEvent('forceUpdateColumns', { 
+      detail: { selectedColumns: newSelectedColumns } 
+    });
+    window.dispatchEvent(event);
   };
-  
-  // Handle auto-configure ad spend tables
-  const handleAutoConfigureAdSpend = () => {
-    const adSpendSuggestions = suggestAdSpendRelationships();
-    
-    // Filter out suggestions that are already in the relationships
-    const newSuggestions = adSpendSuggestions.filter(suggestion => 
-      !relationships.some(rel => {
-        // Check for relationships in either format (camelCase or snake_case)
-        if ('sourceTable' in rel) {
-          return (
-            rel.sourceTable === suggestion.source_table &&
-            rel.sourceColumn === suggestion.source_column &&
-            rel.targetTable === suggestion.target_table &&
-            rel.targetColumn === suggestion.target_column
-          );
-        } else {
-          return (
-            rel.source_table === suggestion.source_table &&
-            rel.source_column === suggestion.source_column &&
-            rel.target_table === suggestion.target_table &&
-            rel.target_column === suggestion.target_column
-          );
-        }
-      })
-    );
-    
-    // Add all new suggested relationships at once
-    if (newSuggestions.length > 0) {
-      onRelationshipsChange([...relationships, ...newSuggestions]);
-    }
-  };
-  
-  // Handle column selection changes from the visual designer
+
   const handleSelectedColumnsChange = (newSelectedColumns) => {
     setSelectedColumns(newSelectedColumns);
     if (onSelectedColumnsChange) {
       onSelectedColumnsChange(newSelectedColumns);
     }
+  };
+
+  // Add reset function
+  const handleResetColumns = () => {
+    const newSelectedColumns = {};
+    
+    // Initialize empty arrays for all selected tables
+    selectedTables.forEach(tableName => {
+      newSelectedColumns[tableName] = [];
+    });
+    
+    // Update local state
+    setSelectedColumns(newSelectedColumns);
+    
+    // Notify parent component
+    if (onSelectedColumnsChange) {
+      onSelectedColumnsChange(newSelectedColumns);
+    }
+    
+    // Force update the VisualSchemaDesigner
+    const event = new CustomEvent('forceUpdateColumns', { 
+      detail: { selectedColumns: newSelectedColumns } 
+    });
+    window.dispatchEvent(event);
   };
   
   return (
@@ -178,16 +110,34 @@ const StandaloneSchemaDesigner = ({
             </Box>
           }
           action={
-            <Button
-              variant="contained"
-              color="primary"
-              startIcon={<SaveIcon />}
-              onClick={() => {
-                // This is handled by the parent component
-              }}
-            >
-              Save Relationships
-            </Button>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                variant="outlined"
+                color="primary"
+                startIcon={<SelectAllIcon />}
+                onClick={handleSelectAllColumns}
+              >
+                Select All Columns
+              </Button>
+              <Button
+                variant="outlined"
+                color="warning"
+                startIcon={<RestartAltIcon />}
+                onClick={handleResetColumns}
+              >
+                Reset Columns
+              </Button>
+              <Button
+                variant="contained"
+                color="primary"
+                startIcon={<SaveIcon />}
+                onClick={() => {
+                  // This is handled by the parent component
+                }}
+              >
+                Save Relationships
+              </Button>
+            </Box>
           }
         />
         <CardContent>
@@ -213,46 +163,14 @@ const StandaloneSchemaDesigner = ({
               <Box>
                 <Typography variant="subtitle1" fontWeight="bold">Schema Information</Typography>
                 <Typography variant="body2">
-                  {selectedTables ? selectedTables.length : 0} tables selected ({adSpendTableCount} ad spend tables) | 
+                  {selectedTables ? selectedTables.length : 0} tables selected | 
                   {relationships.length} relationships defined
                 </Typography>
-                <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                  {hasAdSpendTables && (
-                    <Chip 
-                      color="primary" 
-                      variant="outlined" 
-                      size="small" 
-                      label="Ad Spend Tables"
-                      icon={<InfoIcon />}
-                    />
-                  )}
-                </Stack>
+                
               </Box>
             </Stack>
           </Paper>
           
-          {/* Ad Spend Special Setup */}
-          {hasAdSpendTables && (
-            <Alert 
-              severity="info" 
-              icon={<AutoFixHighIcon />}
-              sx={{ mb: 2 }}
-              action={
-                <Button 
-                  color="inherit" 
-                  size="small" 
-                  onClick={handleAutoConfigureAdSpend}
-                >
-                  Auto-Configure
-                </Button>
-              }
-            >
-              <Typography variant="subtitle2">Ad Spend Tables Detected</Typography>
-              <Typography variant="body2">
-                Set up relationships for UNION ALL queries across your ad spend tables. This will connect tables on ClientID, ClientCompanyID and date columns.
-              </Typography>
-            </Alert>
-          )}
           
           {/* Column Selection Info */}
           <Alert severity="success" sx={{ mb: 2 }}>
@@ -285,9 +203,7 @@ const StandaloneSchemaDesigner = ({
           • Use checkboxes to select columns directly within each table<br />
           • Use the search box to quickly find columns<br />
           • Drag between tables to create a relationship<br />
-          • Use the "Auto-Configure" button for ad spend tables<br />
           • Tables with common join columns like ClientID will be suggested automatically<br />
-          • Choose "UNION" relationship type for UNION ALL queries across ad spend tables
         </Typography>
       </Paper>
     </Box>

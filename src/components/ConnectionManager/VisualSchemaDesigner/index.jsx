@@ -63,6 +63,42 @@ const VisualSchemaDesigner = ({
   connectionId,
   initialRelationships = []
 }) => {
+  // Add this useEffect near the top of the component
+  useEffect(() => {
+    const handleForceUpdate = (event) => {
+      const { selectedColumns } = event.detail;
+      
+      // Update the internal state
+      setTableSelectedColumns(selectedColumns);
+      
+      // Update the nodes to reflect the new selections
+      setNodes(nodes => 
+        nodes.map(node => ({
+          ...node,
+          data: {
+            ...node.data,
+            tableSelectedColumns: selectedColumns[node.id] || []
+          }
+        }))
+      );
+    };
+
+    // Add event listener
+    window.addEventListener('forceUpdateColumns', handleForceUpdate);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('forceUpdateColumns', handleForceUpdate);
+    };
+  }, []);
+
+  // Make sure this useEffect is also present to handle prop changes
+  useEffect(() => {
+    if (selectedColumns) {
+      setTableSelectedColumns(selectedColumns);
+    }
+  }, [selectedColumns]);
+
   // Convert relationships to consistent format with the expected property names
   const normalizeRelationships = useCallback((rels) => {
     if (!rels || !Array.isArray(rels)) return [];
