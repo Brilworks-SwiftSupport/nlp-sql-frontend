@@ -473,6 +473,30 @@ const DashboardView = () => {
               <Link href={`/connections/${connectionId}/dashboard`}>
                 <Button variant="outline">Back to Dashboards</Button>
               </Link>
+              <Button 
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    setIsLoading(true);
+                    const response = await dashboardAPI.refreshDashboard(dashboardId);
+                    setDashboard(response.dashboard.dashboard);
+                  } catch (err) {
+                    setError(err.response?.data?.message || 'Failed to refresh dashboard');
+                  } finally {
+                    setIsLoading(false);
+                  }
+                }}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <div className="flex items-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500 mr-2"></div>
+                    Refreshing...
+                  </div>
+                ) : (
+                  'Refresh Data'
+                )}
+              </Button>
               <Link href={`/connections/${connectionId}/dashboard/${dashboardId}/edit`}>
                 <Button variant="primary">Edit Dashboard</Button>
               </Link>
@@ -560,13 +584,11 @@ const DashboardView = () => {
 
                     <div className="p-4 border-b border-gray-200 drag-handle">
                       <div className="flex justify-between items-center pr-8"> {/* Added pr-8 to account for delete button */}
-                        <h3 className="text-lg font-medium text-gray-900">
-                          {widget.name}
+                        <h3 className="text-sm font-medium text-center text-gray-900">
+                        {widget.natural_language_query}
                         </h3>
                       </div>
-                      <p className="text-sm text-gray-500 mt-1">
-                        {widget.natural_language_query}
-                      </p>
+                      
                     </div>
                     <div className="h-[calc(100%-80px)] overflow-auto">
                       {isSingleValue ? renderMetricDisplay(widget) : renderChart(widget)}
