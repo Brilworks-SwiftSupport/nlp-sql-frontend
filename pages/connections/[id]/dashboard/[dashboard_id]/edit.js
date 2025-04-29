@@ -356,25 +356,41 @@ const DashboardEditPage = () => {
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-medium text-gray-900">Data Visualization</h3>
                     <div className="flex space-x-3">
-                      
                       <Button
-                     
                         onClick={() => handleAddWidget(
                           queryResult.natural_language_query, 
                           queryResult,
-                          { type: 'chart', chartType: 'bar' }
+                          { 
+                            type: 'chart', 
+                            chartType: 'bar',
+                            title: 'Monthly User Signups in 2024',
+                            showLegend: true,
+                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 1
+                          }
                         )}
                       >
                         Save Chart
                       </Button>
                     </div>
                   </div>
-                  <ResultGraph
-                    data={queryResult.result}
-                    sql={queryResult.sql_query}
-                    title="Query Results Visualization"
-                    className="h-[400px]"
-                  />
+                  {queryResult?.result ? (
+                    <ResultGraph
+                      data={queryResult.result.map(row => ({
+                        ...row,
+                        SignupMonth: new Date(2024, row.SignupMonth - 1).toLocaleString('default', { month: 'long' }),
+                        UserCount: parseInt(row.UserCount)
+                      }))}
+                      sql={queryResult.sql_query}
+                      title="Monthly User Signups in 2024"
+                      className="h-[400px]"
+                    />
+                  ) : (
+                    <div className="text-center text-gray-500 py-8">
+                      No data available for visualization
+                    </div>
+                  )}
                 </div>
 
                

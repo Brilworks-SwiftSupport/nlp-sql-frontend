@@ -265,54 +265,78 @@ const DashboardView = () => {
     const chartData = widget.visualization_settings?.chartData;
     if (!chartData) return null;
 
-    const data = {
-      labels: chartData.labels,
-      datasets: [{
-        label: widget.name,
-        data: chartData.labels,
+    // Handle different types of data
+    let labels = [];
+    let datasets = [];
+
+    // Case 1: Monthly data with SignupMonth
+    if (chartData.data[0]?.SignupMonth) {
+      labels = chartData.data.map(row => 
+        new Date(2024, row.SignupMonth - 1).toLocaleString('default', { month: 'long' })
+      );
+      datasets = [{
+        label: 'User Count',
+        data: chartData.data.map(row => row.UserCount),
         backgroundColor: 'rgba(54, 162, 235, 0.2)',
         borderColor: 'rgba(54, 162, 235, 1)',
-        borderWidth: 1,
-      }]
-    };
+        borderWidth: 1
+      }];
+    }
+    // Case 2: Single value metrics (like total agents)
+    else if (chartData.data.length === 1) {
+      const row = chartData.data[0];
+      labels = Object.keys(row);
+      datasets = [{
+        label: 'Count',
+        data: Object.values(row),
+        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+        borderColor: 'rgba(54, 162, 235, 1)',
+        borderWidth: 1
+      }];
+    }
+    // Case 3: Multiple metrics comparison
+    else {
+      const row = chartData.data[0];
+      labels = Object.keys(row);
+      datasets = [{
+        label: 'Values',
+        data: Object.values(row),
+        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+        borderColor: 'rgba(54, 162, 235, 1)',
+        borderWidth: 1
+      }];
+    }
+
+    const data = { labels, datasets };
 
     const options = {
-      ...chartData.options,
       maintainAspectRatio: false,
       responsive: true,
       plugins: {
-        ...chartData.options.plugins,
         legend: {
-          display: false
-        }
-      },
-      layout: {
-        padding: {
-          left: 20,
-          right: 20,
-          top: 20,
-          bottom: 20
+          display: false // Hide legend for single series
+        },
+        title: {
+          display: true,
+          text: widget.name,
+          font: {
+            size: 16,
+            weight: 'bold'
+          }
         }
       },
       scales: {
-        x: {
-          display: true,
-          grid: {
-            display: true
-          },
-          ticks: {
-            maxRotation: 45,
-            minRotation: 45,
-            padding: 10
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: 'Count'
           }
         },
-        y: {
-          display: true,
-          grid: {
-            display: true
-          },
-          ticks: {
-            padding: 10
+        x: {
+          title: {
+            display: true,
+            text: chartData.data[0]?.SignupMonth ? 'Month' : 'Category'
           }
         }
       }
