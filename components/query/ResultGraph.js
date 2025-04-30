@@ -38,6 +38,7 @@ const ResultGraph = ({
   const [chartType, setChartType] = useState('bar');
   const [activeTab, setActiveTab] = useState('graph');
   const [copiedSQL, setCopiedSQL] = useState(false);
+  const [swappedAxes, setSwappedAxes] = useState(false); // New state for axis swapping
 
   const chartData = useMemo(() => {
     if (!data || data.length === 0) return null;
@@ -344,6 +345,7 @@ const ResultGraph = ({
         }
       }
     } : undefined,
+    indexAxis: swappedAxes ? 'y' : 'x', // This will swap the axes when true
   };
 
   return (
@@ -402,6 +404,16 @@ const ResultGraph = ({
             >
               Doughnut
             </button>
+            {/* Add axis swap button */}
+            {chartType !== 'doughnut' && (
+              <button
+                onClick={() => setSwappedAxes(!swappedAxes)}
+                className={`px-3 py-1 rounded ${swappedAxes ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+                title="Swap X/Y axes"
+              >
+                Swap Axes
+              </button>
+            )}
             <button
               onClick={downloadImage}
               className="px-3 py-1 rounded bg-green-600 text-white"
