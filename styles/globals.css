@@ -19,3 +19,19 @@ a {
 * {
   box-sizing: border-box;
 }
+
+textarea {
+  transition: height 0.1s ease-out;
+}
+
+/* Optional: If you want to style the placeholder */
+textarea::placeholder {
+  color: #9CA3AF;
+}
+
+/* Ensure textarea text is always visible */
+textarea {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+}

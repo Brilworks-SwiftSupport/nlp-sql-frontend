@@ -224,7 +224,7 @@ const DashboardEditPage = () => {
           ? 'bg-blue-600 text-white rounded-br-none' 
           : 'bg-gray-100 text-gray-800 rounded-bl-none'
       }`}>
-        <p className="text-sm">{message.content}</p>
+        <p className="text-sm break-words whitespace-pre-wrap">{message.content}</p>
         <span className="text-xs opacity-70 mt-1 block">
           {new Date(message.timestamp).toLocaleTimeString()}
         </span>
@@ -286,18 +286,14 @@ const DashboardEditPage = () => {
               />
               <button
                 type="submit"
-                disabled={!currentMessage.trim() || isLoading}
+                disabled={!currentMessage.trim()}
                 className={`px-4 py-2 rounded-full bg-blue-600 text-white flex items-center justify-center ${
-                  (!currentMessage.trim() || isLoading) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'
+                  !currentMessage.trim() ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'
                 }`}
               >
-                {isLoading ? (
-                  <div className="w-5 h-5 border-t-2 border-white rounded-full animate-spin" />
-                ) : (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                  </svg>
-                )}
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
               </button>
             </form>
           </div>
@@ -320,14 +316,29 @@ const DashboardEditPage = () => {
           </div>
 
           <div className="flex-1 p-6 space-y-6">
+            {/* Loading State */}
+            {isLoading && (
+              <div className="flex justify-center items-center h-64">
+                <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
+              </div>
+            )}
+
             {error && (
               <Alert type="error" message={error} className="mb-6" />
             )}
 
             {/* Query Results */}
-            {queryResult && queryResult.status === 'success' && (
+            {!isLoading && queryResult && queryResult.status === 'success' && (
               <div className="space-y-6">
-                
+                {/* Query Text Display */}
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h3 className="text-lg font-medium text-gray-900 mb-3">Query</h3>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <p className="text-gray-700 whitespace-pre-wrap break-words">
+                      {queryResult.natural_language_query}
+                    </p>
+                  </div>
+                </div>
 
                 {/* Graph Visualization */}
                 <div className="bg-white rounded-lg shadow p-6">
@@ -393,34 +404,19 @@ const DashboardEditPage = () => {
                     </div>
                   </div>
                   {queryResult?.result && queryResult.result.length > 0 ? (
-                    <>
-                      {console.log('Query Result Data:', {
-                        data: queryResult.result,
-                        firstRow: queryResult.result[0],
-                        columns: Object.keys(queryResult.result[0]),
-                        numericColumns: Object.keys(queryResult.result[0]).filter(key => 
-                          typeof queryResult.result[0][key] === 'number' || !isNaN(parseFloat(queryResult.result[0][key]))
-                        ),
-                        nonNumericColumns: Object.keys(queryResult.result[0]).filter(key => 
-                          typeof queryResult.result[0][key] !== 'number' && isNaN(parseFloat(queryResult.result[0][key]))
-                        )
-                      })}
-                      <ResultGraph
-                        data={queryResult.result}
-                        sql={queryResult.sql_query}
-                        title={queryResult.natural_language_query || "Query Results Visualization"}
-                        className="h-[400px]"
-                        maxHeight={400}
-                      />
-                    </>
+                    <ResultGraph
+                      data={queryResult.result}
+                      sql={queryResult.sql_query}
+                      title={queryResult.natural_language_query || "Query Results Visualization"}
+                      className="h-[400px]"
+                      maxHeight={400}
+                    />
                   ) : (
                     <div className="text-center text-gray-500 py-8">
                       No data available for visualization
                     </div>
                   )}
                 </div>
-
-               
               </div>
             )}
           </div>
