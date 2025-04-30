@@ -177,21 +177,6 @@ const DashboardEditPage = () => {
     }
   };
 
-  const handleRemoveWidget = async (index) => {
-    try {
-      setError(null);
-      const updatedWidgets = widgets.filter((_, i) => i !== index);
-      setWidgets(updatedWidgets);
-
-      await dashboardAPI.update(dashboardId, {
-        ...dashboard,
-        widgets: updatedWidgets
-      });
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to remove widget');
-    }
-  };
-
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!currentMessage.trim()) return;

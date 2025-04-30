@@ -11,8 +11,9 @@ import ResultGraph from '../../../components/query/ResultGraph';
 import TableSelector from '../../../components/tables/TableSelector';
 import Button from '../../../components/common/Button';
 import Alert from '../../../components/common/Alert';
-import { connectionAPI, queryAPI } from '../../../lib/api';
+import { connectionAPI, queryAPI, dashboardAPI } from '../../../lib/api';
 import { withAuth } from '../../../lib/auth';
+import Select from '../../../components/common/Select';
 
 const QueryPage = () => {
   const router = useRouter();
@@ -31,6 +32,8 @@ const QueryPage = () => {
   const [queryResult, setQueryResult] = useState(null);
   const [isSavingQuery, setIsSavingQuery] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [dashboards, setDashboards] = useState([]);
+  const [selectedDashboard, setSelectedDashboard] = useState(null);
   
   // Get connection and check if schema exists
   useEffect(() => {
@@ -190,6 +193,82 @@ const QueryPage = () => {
       setIsSavingQuery(false);
     }
   };
+
+  const handleAddWidget = async (query, result, chartConfig = null) => {
+    try {
+      if (!selectedDashboard) {
+        setError('Please select a dashboard first');
+        return;
+      }
+
+      setError(null);
+      
+      const position = {
+        x: 0,
+        y: 0, // The dashboard will handle positioning
+        w: 6,
+        h: 2
+      };
+
+      const chartData = {
+        type: chartConfig?.chartType || 'bar',
+        data: result.result,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: chartConfig?.showLegend || false
+            },
+            title: {
+              display: true,
+              text: query
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      };
+
+      const widgetData = {
+        dashboard_id: selectedDashboard,
+        name: query,
+        widget_type: 'chart',
+        natural_language_query: query,
+        sql_query: result.sql_query,
+        visualization_settings: {
+          chartType: chartConfig?.chartType || 'bar',
+          chartData: chartData
+        },
+        position: position,
+        refresh_interval: 0
+      };
+
+      const response = await dashboardAPI.addWidget(widgetData);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+      
+    } catch (err) {
+      console.error('Error adding widget:', err);
+      setError(err.response?.data?.message || 'Failed to add widget');
+    }
+  };
+
+  useEffect(() => {
+    const fetchDashboards = async () => {
+      try {
+        const response = await dashboardAPI.getDashboardsByCollection(id); // Assuming this endpoint exists
+        setDashboards(response.dashboards);
+      } catch (err) {
+        console.error('Error fetching dashboards:', err);
+      }
+    };
+    
+    fetchDashboards();
+  }, [id]);
   
   if (isLoading) {
     return (
@@ -262,7 +341,68 @@ const QueryPage = () => {
             <div className="mt-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-medium text-gray-900">Query Results</h2>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-4">
+                  <div className="w-64">
+                    <Select
+                      value={selectedDashboard}
+                      onChange={(value) => setSelectedDashboard(value)}
+                      options={dashboards.map(d => ({ value: d.id, label: d.name }))}
+                      placeholder="Select Dashboard"
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      const data = queryResult.result;
+                      const firstRow = data[0];
+                      const keys = Object.keys(firstRow);
+                      
+                      const numericColumns = keys.filter(key => 
+                        typeof firstRow[key] === 'number' || !isNaN(parseFloat(firstRow[key]))
+                      );
+                      const nonNumericColumns = keys.filter(key => !numericColumns.includes(key));
+                      
+                      let chartConfig;
+                      if (data.length === 1) {
+                        chartConfig = {
+                          type: 'chart',
+                          chartType: 'bar',
+                          title: queryResult.natural_language_query,
+                          showLegend: false,
+                          backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                          borderColor: 'rgba(54, 162, 235, 1)',
+                          borderWidth: 1,
+                          customSettings: {
+                            dataStructure: 'single-row'
+                          }
+                        };
+                      } else if (nonNumericColumns.length >= 1 && numericColumns.length >= 1) {
+                        chartConfig = {
+                          type: 'chart',
+                          chartType: 'bar',
+                          title: queryResult.natural_language_query,
+                          showLegend: numericColumns.length > 1,
+                          backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                          borderColor: 'rgba(54, 162, 235, 1)',
+                          borderWidth: 1,
+                          customSettings: {
+                            dataStructure: 'time-series',
+                            categoryColumn: nonNumericColumns[0],
+                            valueColumns: numericColumns
+                          }
+                        };
+                      }
+
+                      handleAddWidget(
+                        queryResult.natural_language_query,
+                        queryResult,
+                        chartConfig
+                      );
+                    }}
+                    disabled={!selectedDashboard}
+                  >
+                    Save to Dashboard
+                  </Button>
                   {saveSuccess && (
                     <span className="text-green-600 text-sm">
                       Query saved successfully!
@@ -292,11 +432,6 @@ const QueryPage = () => {
                   </Button>
                 </div>
               </div>
-              <SqlDisplay sql={queryResult.sql_query} />
-              <ResultTable
-                data={queryResult.result}
-                rowCount={queryResult.row_count}
-              />
               <div className="mt-6">
               <ResultGraph
                     data={queryResult.result}
@@ -305,6 +440,12 @@ const QueryPage = () => {
                     className="h-[400px]"
                   />
               </div>
+              <SqlDisplay sql={queryResult.sql_query} />
+              <ResultTable
+                data={queryResult.result}
+                rowCount={queryResult.row_count}
+              />
+              
             </div>
           )}
           
