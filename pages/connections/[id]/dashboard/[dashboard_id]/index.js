@@ -354,7 +354,7 @@ const DashboardView = () => {
   };
 
   const handleSendMessage = async () => {
-    if (!currentMessage.trim()) return;
+    if (!currentMessage.trim() || isExecuting) return;
 
     const userMessage = {
       type: 'user',
@@ -364,9 +364,13 @@ const DashboardView = () => {
 
     setMessages(prev => [...prev, userMessage]);
     setCurrentMessage('');
+    setIsExecuting(true);
 
     try {
       const response = await handleQueryExecution(userMessage.content);
+      
+      // Update latest query result for the save button
+      setQueryResult(response);
       
       const systemMessage = {
         type: 'system',
@@ -374,8 +378,13 @@ const DashboardView = () => {
           ? 'Here are the results for your query.'
           : response.message || 'Sorry, I could not process your query.',
         timestamp: new Date().toISOString(),
-        queryResult: response.status === 'success' ? response : null
+        queryResult: response.status === 'success' ? {
+          result: response.result,
+          sql_query: response.sql_query,
+          natural_language_query: userMessage.content
+        } : null
       };
+      
       setMessages(prev => [...prev, systemMessage]);
     } catch (error) {
       const errorMessage = {
@@ -385,6 +394,8 @@ const DashboardView = () => {
         error: true
       };
       setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsExecuting(false);
     }
   };
 
@@ -479,12 +490,13 @@ const DashboardView = () => {
 
   const handleEditWidget = (widget) => {
     setSelectedWidget(widget);
-    // Initialize currentMessage with either natural_language_query or name
     setCurrentMessage(widget.natural_language_query || widget.name || '');
     setQueryResult({
       result: widget.visualization_settings?.chartData?.data,
       sql_query: widget.sql_query
     });
+    
+    // Initialize messages with the current widget data
     setMessages([
       {
         type: 'user',
@@ -497,10 +509,12 @@ const DashboardView = () => {
         timestamp: new Date().toISOString(),
         queryResult: {
           result: widget.visualization_settings?.chartData?.data,
-          sql_query: widget.sql_query
+          sql_query: widget.sql_query,
+          natural_language_query: widget.natural_language_query || widget.name
         }
       }
     ]);
+    
     setIsEditPopupOpen(true);
   };
 
@@ -706,13 +720,24 @@ const DashboardView = () => {
       </div>
       {isEditPopupOpen && selectedWidget && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center overflow-y-auto">
-          <div className="bg-white rounded-lg w-full max-w-4xl m-4 flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-lg w-full max-w-4xl m-4 flex flex-col max-h-[90vh] relative">
+            {/* Loading Overlay */}
+            {isExecuting && (
+              <div className="absolute inset-0 bg-white bg-opacity-75 z-10 flex items-center justify-center rounded-lg">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+                  <p className="mt-4 text-gray-600">Executing query...</p>
+                </div>
+              </div>
+            )}
+
             {/* Header */}
             <div className="p-4 border-b border-gray-200 flex justify-between items-center shrink-0">
               <h2 className="text-xl font-semibold">Edit Widget</h2>
               <button
                 onClick={handleClosePopup}
                 className="text-gray-400 hover:text-gray-600"
+                disabled={isExecuting}
               >
                 <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -726,57 +751,121 @@ const DashboardView = () => {
               <div className="mb-6">
                 <p className="text-sm font-medium text-gray-700 mb-2">Current Query:</p>
                 <div className="bg-blue-50 p-3 rounded-lg">
-                  <p className="text-gray-800">{selectedWidget.natural_language_query || selectedWidget.name}</p>
+                  <p className="text-gray-800 whitespace-pre-wrap break-words">
+                    {selectedWidget.natural_language_query || selectedWidget.name}
+                  </p>
                 </div>
               </div>
 
+              {/* Messages and Graphs Display */}
+              <div className="mb-6 space-y-6">
+                {messages.map((message, index) => (
+                  <div key={index}>
+                    {/* Message */}
+                    <div className={`mb-4 ${message.type === 'user' ? 'text-right' : 'text-left'}`}>
+                      <div
+                        className={`inline-block p-3 rounded-lg max-w-[80%] break-words ${
+                          message.type === 'user'
+                            ? 'bg-blue-100 text-blue-900'
+                            : 'bg-gray-100 text-gray-900'
+                        }`}
+                      >
+                        <p className="whitespace-pre-wrap">{message.content}</p>
+                      </div>
+                    </div>
 
-
-              {/* Chart Display */}
-              <div className="bg-gray-50 rounded-lg p-4 mb-6" style={{ height: '400px' }}>
-                {queryResult && (
-                  <ResultGraph
-                    data={queryResult.result}
-                    sql={queryResult.sql_query}
-                    maxHeight="100%"
-                  />
-                )}
+                    {/* Graph for system messages with query results */}
+                    {message.type === 'system' && message.queryResult && (
+                      <div className="mt-4 bg-gray-50 rounded-lg p-4" style={{ height: '300px' }}>
+                        <ResultGraph
+                          data={message.queryResult.result}
+                          sql={message.queryResult.sql_query}
+                          maxHeight="100%"
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
 
             {/* Footer */}
             <div className="p-4 border-t border-gray-200 shrink-0">
-              <div className="flex items-center space-x-2">
-                <input
-                  type="text"
-                  value={currentMessage}
-                  onChange={(e) => setCurrentMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                  placeholder="Ask a question..."
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <button
-                  onClick={handleSendMessage}
-                  disabled={isExecuting}
-                  className={`px-4 py-2 rounded-lg ${
-                    isExecuting 
-                      ? 'bg-gray-300 cursor-not-allowed' 
-                      : 'bg-blue-500 hover:bg-blue-600 text-white'
-                  }`}
-                >
-                  {isExecuting ? 'Executing...' : 'Execute Query'}
-                </button>
-                <button
-                  onClick={handleUpdateWidget}
-                  disabled={!queryResult}
-                  className={`px-4 py-2 rounded-lg ${
-                    !queryResult 
-                      ? 'bg-gray-300 cursor-not-allowed' 
-                      : 'bg-blue-500 hover:bg-blue-600 text-white'
-                  }`}
-                >
-                  Save Chart
-                </button>
+              <div className="flex flex-col space-y-3">
+                <div className="relative flex-1">
+                  <textarea
+                    value={currentMessage}
+                    onChange={(e) => {
+                      setCurrentMessage(e.target.value);
+                      // Reset height to auto first to get the correct scrollHeight
+                      e.target.style.height = 'auto';
+                      // Add some extra padding to prevent scrollbar flashing
+                      e.target.style.height = `${e.target.scrollHeight + 2}px`;
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        if (!isExecuting && currentMessage.trim()) {
+                          handleSendMessage();
+                        }
+                      }
+                    }}
+                    placeholder="Ask a question..."
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
+                    disabled={isExecuting}
+                    rows={1}
+                    style={{
+                      resize: 'none',
+                      minHeight: '56px',
+                      lineHeight: '1.5',
+                      display: 'block',
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      whiteSpace: 'pre-wrap',
+                      overflowY: 'hidden', // Hide scrollbar but allow content to expand
+                      wordBreak: 'break-word',
+                      fontFamily: 'inherit',
+                      paddingBottom: '8px'
+                    }}
+                  />
+                  <div className="text-xs text-gray-500 mt-1 flex justify-between items-center">
+                    <span>Press Shift + Enter for new line, Enter to submit</span>
+                    <span>{currentMessage.length} characters</span>
+                  </div>
+                </div>
+                <div className="flex justify-end space-x-2 mt-2">
+                  <button
+                    onClick={handleSendMessage}
+                    disabled={isExecuting || !currentMessage.trim()}
+                    className={`px-4 py-2 rounded-lg flex items-center space-x-2 ${
+                      isExecuting || !currentMessage.trim()
+                        ? 'bg-gray-300 cursor-not-allowed'
+                        : 'bg-blue-500 hover:bg-blue-600 text-white'
+                    }`}
+                  >
+                    {isExecuting ? (
+                      <>
+                        <span className="animate-spin">⏳</span>
+                        <span>Processing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Execute Query</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={handleUpdateWidget}
+                    disabled={!queryResult || isExecuting}
+                    className={`px-4 py-2 rounded-lg ${
+                      !queryResult || isExecuting
+                        ? 'bg-gray-300 cursor-not-allowed'
+                        : 'bg-blue-500 hover:bg-blue-600 text-white'
+                    }`}
+                  >
+                    Save Chart
+                  </button>
+                </div>
               </div>
             </div>
           </div>
