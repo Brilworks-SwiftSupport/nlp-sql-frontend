@@ -28,7 +28,7 @@ ChartJS.register(
 
 const ResultGraph = ({
   data = [],
-  sql = '', // Add SQL prop
+  sql = '',
   title = 'Query Results',
   className = '',
   maxHeight = 400,
@@ -36,70 +36,149 @@ const ResultGraph = ({
 }) => {
   const chartRef = useRef(null);
   const [chartType, setChartType] = useState('bar');
-  const [activeTab, setActiveTab] = useState('graph'); // 'graph' or 'data' or 'sql'
+  const [activeTab, setActiveTab] = useState('graph');
   const [copiedSQL, setCopiedSQL] = useState(false);
-  
-  // Enhanced chart data processing
+
   const chartData = useMemo(() => {
     if (!data || data.length === 0) return null;
 
     const firstRow = data[0];
     const keys = Object.keys(firstRow);
-    
-    // Check for time-series data (looking for date/month columns)
-    const timeColumns = keys.filter(key => 
-      key.toLowerCase().includes('date') || 
-      key.toLowerCase().includes('month') || 
-      key.toLowerCase().includes('year')
-    );
-    
-    // Find numeric columns (excluding the time column)
-    const numericColumns = keys.filter(key => 
-      !timeColumns.includes(key) && 
-      (typeof firstRow[key] === 'number' || !isNaN(parseFloat(firstRow[key])))
-    );
 
-    // If we have time-series data
-    if (timeColumns.length > 0 && numericColumns.length > 0) {
-      const timeColumn = timeColumns[0];
+    // Special handling for single record with two columns
+    if (keys.length === 2 && data.length === 1) {
+      const labels = keys.map(key => key.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim());
+      const values = keys.map(key => parseFloat(firstRow[key]));
+      
       return {
-        labels: data.map(row => row[timeColumn]),
-        datasets: numericColumns.map(column => ({
-          label: column.replace(/([A-Z])/g, ' $1').trim(), // Add spaces before capital letters
-          data: data.map(row => parseFloat(row[column])),
-          backgroundColor: `hsla(${Math.random() * 360}, 70%, 50%, 0.6)`,
-          borderColor: `hsla(${Math.random() * 360}, 70%, 50%, 1)`,
-          borderWidth: 1,
-        })),
+        labels,
+        datasets: [{
+          data: values,
+          backgroundColor: [
+            'hsla(210, 70%, 50%, 0.6)',
+            'hsla(150, 70%, 50%, 0.6)'
+          ],
+          borderColor: [
+            'hsla(210, 70%, 50%, 1)',
+            'hsla(150, 70%, 50%, 1)'
+          ],
+          borderWidth: 1
+        }]
       };
     }
 
-    // Handle single row with multiple columns
-    if (data.length === 1) {
+    // Special handling for two-column data
+    if (keys.length === 2) {
+      const numericColumn = keys.find(key => {
+        const value = firstRow[key];
+        return typeof value === 'number' || (!isNaN(parseFloat(value)) && value !== null && value !== '');
+      });
+      const categoryColumn = keys.find(key => key !== numericColumn);
+
+      // Format labels (x-axis)
+      const labels = data.map(row => {
+        const value = row[categoryColumn];
+        // Handle month numbers
+        if (!isNaN(value) && value >= 1 && value <= 12) {
+          return new Date(2024, value - 1).toLocaleString('default', { month: 'long' });
+        }
+        return value?.toString() || '';
+      });
+
       return {
-        labels: numericColumns,
+        labels,
+        datasets: [{
+          label: numericColumn.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim(),
+          data: data.map(row => parseFloat(row[numericColumn])),
+          backgroundColor: `hsla(${Math.random() * 360}, 70%, 50%, 0.6)`,
+          borderColor: `hsla(${Math.random() * 360}, 70%, 50%, 1)`,
+          borderWidth: 1,
+          yAxisID: 'y'
+        }]
+      };
+    }
+
+    // Find numeric columns
+    const numericColumns = keys.filter(key => {
+      const value = firstRow[key];
+      return typeof value === 'number' || (!isNaN(parseFloat(value)) && value !== null && value !== '');
+    });
+
+    // Find potential date/time columns
+    const dateColumns = keys.filter(key => {
+      const value = String(firstRow[key]).toLowerCase();
+      return (
+        value.match(/^\d{4}-\d{2}-\d{2}/) || // ISO date
+        value.match(/^\d{2}\/\d{2}\/\d{4}/) || // DD/MM/YYYY
+        value.match(/^\d{4}\/\d{2}\/\d{2}/) || // YYYY/MM/DD
+        /jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec/.test(value) || // Month names
+        key.toLowerCase().includes('date') ||
+        key.toLowerCase().includes('time') ||
+        key.toLowerCase().includes('month') ||
+        key.toLowerCase().includes('year')
+      );
+    });
+
+    // Find categorical columns (non-numeric, non-date)
+    const categoricalColumns = keys.filter(key => 
+      !numericColumns.includes(key) && !dateColumns.includes(key)
+    );
+
+    // Case 1: Single row with multiple numeric values
+    if (data.length === 1 && numericColumns.length > 0) {
+      return {
+        labels: numericColumns.map(col => col.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()),
         datasets: [{
           label: 'Values',
-          data: numericColumns.map(column => parseFloat(firstRow[column])),
+          data: numericColumns.map(col => parseFloat(firstRow[col])),
           backgroundColor: numericColumns.map(() => `hsla(${Math.random() * 360}, 70%, 50%, 0.6)`),
           borderColor: numericColumns.map(() => `hsla(${Math.random() * 360}, 70%, 50%, 1)`),
           borderWidth: 1,
-        }],
+        }]
       };
     }
 
-    // Default case: use first non-numeric column as labels
-    const nonNumericColumns = keys.filter(key => !numericColumns.includes(key));
-    if (nonNumericColumns.length > 0 && numericColumns.length > 0) {
+    // Case 2: Time series data
+    if (dateColumns.length > 0 && numericColumns.length > 0) {
+      const dateColumn = dateColumns[0];
       return {
-        labels: data.map(row => row[nonNumericColumns[0]]),
+        labels: data.map(row => row[dateColumn]),
         datasets: numericColumns.map(column => ({
-          label: column.replace(/([A-Z])/g, ' $1').trim(),
+          label: column.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim(),
           data: data.map(row => parseFloat(row[column])),
           backgroundColor: `hsla(${Math.random() * 360}, 70%, 50%, 0.6)`,
           borderColor: `hsla(${Math.random() * 360}, 70%, 50%, 1)`,
           borderWidth: 1,
-        })),
+        }))
+      };
+    }
+
+    // Case 3: Categorical data with numeric values
+    if (categoricalColumns.length > 0 && numericColumns.length > 0) {
+      const categoryColumn = categoricalColumns[0];
+      return {
+        labels: data.map(row => row[categoryColumn]),
+        datasets: numericColumns.map(column => ({
+          label: column.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim(),
+          data: data.map(row => parseFloat(row[column])),
+          backgroundColor: `hsla(${Math.random() * 360}, 70%, 50%, 0.6)`,
+          borderColor: `hsla(${Math.random() * 360}, 70%, 50%, 1)`,
+          borderWidth: 1,
+        }))
+      };
+    }
+
+    // Case 4: Only numeric columns
+    if (numericColumns.length > 0) {
+      return {
+        labels: data.map((_, index) => `Row ${index + 1}`),
+        datasets: numericColumns.map(column => ({
+          label: column.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim(),
+          data: data.map(row => parseFloat(row[column])),
+          backgroundColor: `hsla(${Math.random() * 360}, 70%, 50%, 0.6)`,
+          borderColor: `hsla(${Math.random() * 360}, 70%, 50%, 1)`,
+          borderWidth: 1,
+        }))
       };
     }
 
@@ -110,22 +189,21 @@ const ResultGraph = ({
   useEffect(() => {
     if (!chartData) return;
 
-    if (chartData.datasets[0].data.length === 1) {
+    if (data.length === 1 && Object.keys(data[0]).length === 2) {
+      setChartType('doughnut'); // Force doughnut chart for single record with two columns
+    } else if (chartData.datasets[0].data.length === 1) {
       setChartType('doughnut');
-    } else if (chartData.labels.some(label => 
-      label.includes('-') || label.includes('/') || label.toLowerCase().includes('month')
-    )) {
-      setChartType('line'); // Use line chart for time series
-    } else if (chartData.labels.length > 10) {
+    } else if (chartData.datasets.length === 1 && chartData.labels.length <= 5) {
+      setChartType('doughnut');
+    } else if (data.length > 10 || chartData.datasets.length > 3) {
       setChartType('line');
     } else {
       setChartType('bar');
     }
-  }, [chartData]);
+  }, [chartData, data]);
 
   const downloadImage = async () => {
     if (!chartRef.current) return;
-    
     const canvas = await html2canvas(chartRef.current);
     const link = document.createElement('a');
     link.download = `${title.replace(/\s+/g, '_')}.png`;
@@ -135,7 +213,6 @@ const ResultGraph = ({
 
   const downloadCSV = () => {
     if (!data || data.length === 0) return;
-    
     const headers = Object.keys(data[0]);
     const csvContent = [
       headers.join(','),
@@ -213,6 +290,7 @@ const ResultGraph = ({
     plugins: {
       legend: {
         position: 'top',
+        display: chartData.datasets.length > 1 || chartType === 'doughnut',
       },
       title: {
         display: true,
@@ -222,13 +300,43 @@ const ResultGraph = ({
     scales: chartType !== 'doughnut' ? {
       y: {
         beginAtZero: true,
+        title: {
+          display: true,
+          text: data && data[0] ? 
+            (Object.keys(data[0])[0] || '').replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim() 
+            : 'Value',
+          font: {
+            weight: 'bold'
+          }
+        },
+        ticks: {
+          callback: (value) => {
+            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
+            if (value >= 1000) return (value / 1000).toFixed(1) + 'K';
+            return value;
+          }
+        }
       },
+      x: {
+        title: {
+          display: true,
+          text: data && data[0] && Object.keys(data[0]).length > 1 ? 
+            (Object.keys(data[0])[1] || '').replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim() 
+            : 'Category',
+          font: {
+            weight: 'bold'
+          }
+        },
+        ticks: {
+          maxRotation: 45,
+          minRotation: 45
+        }
+      }
     } : undefined,
   };
 
   return (
     <div className={`flex flex-col ${className}`}>
-      {/* Tabs */}
       <div className="flex border-b border-gray-200 mb-4">
         <button
           onClick={() => setActiveTab('graph')}
@@ -262,7 +370,6 @@ const ResultGraph = ({
         </button>
       </div>
 
-      {/* Action Buttons */}
       <div className="flex justify-end space-x-2 mb-4">
         {activeTab === 'graph' && (
           <>
@@ -302,7 +409,6 @@ const ResultGraph = ({
         )}
       </div>
       
-      {/* Content */}
       <div style={{ height: maxHeight }}>
         {activeTab === 'graph' ? (
           <div ref={chartRef} style={{ height: '100%' }}>

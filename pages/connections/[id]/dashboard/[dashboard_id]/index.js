@@ -22,6 +22,7 @@ import {
 import { Responsive, WidthProvider } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
+import ResultGraph from '../../../../../components/query/ResultGraph';
 
 // Register ChartJS components
 ChartJS.register(
@@ -278,128 +279,21 @@ const DashboardView = () => {
   // Function to render a chart for time series data
   const renderChart = (widget) => {
     const chartData = widget.visualization_settings?.chartData;
-    const currentChartType = widgetChartTypes[widget.id] || 'bar';
     
     if (!chartData || !chartData.data) {
       console.log('No chart data available');
       return null;
     }
 
-    // Prepare data based on the data structure type
-    let labels = [];
-    let datasets = [];
-
-    // Handle the data structure from the backend
-    const data = chartData.data;
-    console.log('Processing data:', data);
-
-    if (data.length === 1) {
-      // Single row data - show all fields as separate bars
-      const row = data[0];
-      labels = Object.keys(row);
-      datasets = [{
-        label: 'Values',
-        data: Object.values(row).map(v => typeof v === 'string' ? parseFloat(v) : v),
-        backgroundColor: 'rgba(54, 162, 235, 0.2)',
-        borderColor: 'rgba(54, 162, 235, 1)',
-        borderWidth: 1
-      }];
-    } else {
-      // Multiple rows - find numeric and non-numeric columns
-      const firstRow = data[0];
-      const keys = Object.keys(firstRow);
-      const numericColumns = keys.filter(key => 
-        !isNaN(firstRow[key]) || typeof firstRow[key] === 'number'
-      );
-      const categoryColumn = keys.find(key => 
-        isNaN(firstRow[key]) || keys.indexOf(key) === 0
-      );
-
-      labels = data.map(row => {
-        const value = row[categoryColumn];
-        // If it looks like a month number, convert to month name
-        if (!isNaN(value) && value >= 1 && value <= 12) {
-          return new Date(2024, value - 1).toLocaleString('default', { month: 'long' });
-        }
-        return value?.toString() || '';
-      });
-
-      datasets = numericColumns.map(column => ({
-        label: column,
-        data: data.map(row => typeof row[column] === 'string' ? parseFloat(row[column]) : row[column]),
-        backgroundColor: 'rgba(54, 162, 235, 0.2)',
-        borderColor: 'rgba(54, 162, 235, 1)',
-        borderWidth: 1
-      }));
-    }
-
-    console.log('Prepared chart data:', { labels, datasets });
-
-    const options = {
-      maintainAspectRatio: false,
-      responsive: true,
-      plugins: {
-        legend: {
-          display: datasets.length > 1,
-          position: 'top'
-        },
-        title: {
-          display: true,
-          text: widget.name,
-          font: {
-            size: 16,
-            weight: 'bold'
-          }
-        }
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          title: {
-            display: true,
-            text: datasets[0]?.label || 'Value'
-          }
-        },
-        x: {
-          title: {
-            display: true,
-            text: 'Category'
-          }
-        }
-      }
-    };
-
     return (
-      <div className="h-full p-6 flex flex-col">
-        {/* Chart Type Selector with draggable handle prevention */}
-        <div className="flex justify-end space-x-2 mb-4 relative z-10" onMouseDown={(e) => e.stopPropagation()}>
-          <Button
-            size="sm"
-            variant={currentChartType === 'bar' ? 'primary' : 'outline'}
-            onClick={() => handleChartTypeChange(widget.id, 'bar')}
-          >
-            Bar
-          </Button>
-          <Button
-            size="sm"
-            variant={currentChartType === 'line' ? 'primary' : 'outline'}
-            onClick={() => handleChartTypeChange(widget.id, 'line')}
-          >
-            Line
-          </Button>
-          <Button
-            size="sm"
-            variant={currentChartType === 'doughnut' ? 'primary' : 'outline'}
-            onClick={() => handleChartTypeChange(widget.id, 'doughnut')}
-          >
-            Doughnut
-          </Button>
-        </div>
-        <div className="flex-1 relative">
-          {currentChartType === 'bar' && <Bar data={{ labels, datasets }} options={options} />}
-          {currentChartType === 'line' && <Line data={{ labels, datasets }} options={options} />}
-          {currentChartType === 'doughnut' && <Doughnut data={{ labels, datasets }} options={options} />}
-        </div>
+      <div className="h-full">
+        <ResultGraph
+          data={chartData.data}
+          title={widget.name}
+          sql={widget.sql_query}
+          maxHeight="100%"
+          className="h-full"
+        />
       </div>
     );
   };

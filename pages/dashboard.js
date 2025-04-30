@@ -29,24 +29,34 @@ export default function Dashboard() {
       return;
     }
 
+    let mounted = true;
+
     const fetchDashboards = async () => {
       try {
         setIsLoading(true);
         setError(null);
         const response = await dashboardAPI.getAllDashboards();
-        if (response.status === 'success') {
+        if (mounted && response.status === 'success') {
           setDashboards(response.dashboards);
         }
       } catch (err) {
-        console.error('Error fetching dashboards:', err);
-        setError(err.response?.data?.message || "Failed to load dashboards");
-        setDashboards([]);
+        if (mounted) {
+          console.error('Error fetching dashboards:', err);
+          setError(err.response?.data?.message || "Failed to load dashboards");
+          setDashboards([]);
+        }
       } finally {
-        setIsLoading(false);
+        if (mounted) {
+          setIsLoading(false);
+        }
       }
     };
 
     fetchDashboards();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const filteredAndSortedDashboards = () => {

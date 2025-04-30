@@ -4,8 +4,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import Layout from '../../../../components/layout/Layout';
 import Button from '../../../../components/common/Button';
-import ResultTable from '../../../../components/query/ResultTable';
-import ResultGraph from '../../../../components/query/ResultGraph';
+
 import { dashboardAPI, connectionAPI } from '../../../../lib/api';
 
 const ConnectionDashboard = () => {
