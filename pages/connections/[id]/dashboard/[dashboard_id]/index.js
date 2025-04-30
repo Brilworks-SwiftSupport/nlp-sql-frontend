@@ -445,16 +445,43 @@ const DashboardView = () => {
                     style={{ touchAction: 'none' }} // Prevent touch events from interfering
                   >
                     {/* Increased z-index and added pointer-events-auto to ensure clickability */}
-                    <div className="absolute top-2 right-2 z-[999] pointer-events-auto">
+                    <div className="absolute top-2 right-2 z-[999] pointer-events-auto flex space-x-1">
+                      {/* Edit Button */}
+                      <Link href={`/connections/${connectionId}/dashboard/${dashboardId}/edit`}>
+                        <button
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          className="text-gray-400 hover:text-blue-600 transition-colors p-1 rounded-full hover:bg-gray-100"
+                          title="Edit widget"
+                        >
+                          <svg 
+                            className="h-5 w-5" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            viewBox="0 0 24 24"
+                          >
+                            <path 
+                              strokeLinecap="round" 
+                              strokeLinejoin="round" 
+                              strokeWidth={2} 
+                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
+                            />
+                          </svg>
+                        </button>
+                      </Link>
+
+                      {/* Delete Button */}
                       <button
                         onClick={(e) => {
-                          e.preventDefault(); // Prevent default behavior
-                          e.stopPropagation(); // Stop event bubbling
-                          console.log('Delete button clicked for widget:', widget.id); // Add this for debugging
+                          e.preventDefault();
+                          e.stopPropagation();
+                          console.log('Delete button clicked for widget:', widget.id);
                           handleDeleteWidget(widget.id);
                         }}
                         onMouseDown={(e) => {
-                          e.preventDefault(); // Prevent drag initialization
+                          e.preventDefault();
                           e.stopPropagation();
                         }}
                         className="text-gray-400 hover:text-red-600 transition-colors p-1 rounded-full hover:bg-gray-100"
