@@ -69,15 +69,20 @@ const ResultGraph = ({
 
     // Special handling for two-column data
     if (keys.length === 2) {
+      // First, identify which column is numeric and which is categorical/date
       const numericColumn = keys.find(key => {
         const value = firstRow[key];
         return typeof value === 'number' || (!isNaN(parseFloat(value)) && value !== null && value !== '');
       });
       const categoryColumn = keys.find(key => key !== numericColumn);
 
+      // Always ensure numeric values go on y-axis
+      const yAxisColumn = numericColumn;
+      const xAxisColumn = categoryColumn;
+
       // Format labels (x-axis)
       const labels = data.map(row => {
-        const value = row[categoryColumn];
+        const value = row[xAxisColumn];
         // Handle month numbers
         if (!isNaN(value) && value >= 1 && value <= 12) {
           return new Date(2024, value - 1).toLocaleString('default', { month: 'long' });
@@ -88,8 +93,8 @@ const ResultGraph = ({
       return {
         labels,
         datasets: [{
-          label: numericColumn.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim(),
-          data: data.map(row => parseFloat(row[numericColumn])),
+          label: yAxisColumn.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim(),
+          data: data.map(row => parseFloat(row[yAxisColumn])),
           backgroundColor: `hsla(${Math.random() * 360}, 70%, 50%, 0.6)`,
           borderColor: `hsla(${Math.random() * 360}, 70%, 50%, 1)`,
           borderWidth: 1,
@@ -303,7 +308,10 @@ const ResultGraph = ({
         title: {
           display: true,
           text: data && data[0] ? 
-            (Object.keys(data[0])[0] || '').replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim() 
+            (Object.keys(data[0]).find(key => {
+              const value = data[0][key];
+              return typeof value === 'number' || (!isNaN(parseFloat(value)) && value !== null);
+            }) || '').replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()
             : 'Value',
           font: {
             weight: 'bold'
@@ -320,8 +328,11 @@ const ResultGraph = ({
       x: {
         title: {
           display: true,
-          text: data && data[0] && Object.keys(data[0]).length > 1 ? 
-            (Object.keys(data[0])[1] || '').replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim() 
+          text: data && data[0] ? 
+            (Object.keys(data[0]).find(key => {
+              const value = data[0][key];
+              return typeof value !== 'number' && isNaN(parseFloat(value));
+            }) || '').replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()
             : 'Category',
           font: {
             weight: 'bold'
