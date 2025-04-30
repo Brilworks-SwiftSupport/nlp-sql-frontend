@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Layout from '../../../../../components/layout/Layout';
 import Button from '../../../../../components/common/Button';
 import Alert from '../../../../../components/common/Alert';
-import { dashboardAPI } from '../../../../../lib/api';
+import { dashboardAPI, queryAPI } from '../../../../../lib/api';
 import { Bar, Line, Doughnut } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -51,6 +51,12 @@ const DashboardView = () => {
   const isInitialLoad = useRef(true);
   const prevLayouts = useRef({});
   const [widgetChartTypes, setWidgetChartTypes] = useState({});
+  const [isEditPopupOpen, setIsEditPopupOpen] = useState(false);
+  const [selectedWidget, setSelectedWidget] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [currentMessage, setCurrentMessage] = useState('');
+  const [queryResult, setQueryResult] = useState(null);
+  const [isExecuting, setIsExecuting] = useState(false);
 
   const handleDeleteWidget = async (widgetId) => {
     console.log('Deleting widget with ID:', widgetId); // Add this for debugging
@@ -333,6 +339,120 @@ const DashboardView = () => {
     saveLayout(layouts, prevLayouts.current);
   };
 
+  const handleQueryExecution = async (query) => {
+    try {
+      setIsExecuting(true);
+      const response = await queryAPI.executeQuery(connectionId, query);
+      setQueryResult(response);
+      return response;
+    } catch (error) {
+      console.error('Error executing query:', error);
+      throw error;
+    } finally {
+      setIsExecuting(false);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!currentMessage.trim()) return;
+
+    const userMessage = {
+      type: 'user',
+      content: currentMessage,
+      timestamp: new Date().toISOString()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setCurrentMessage('');
+
+    try {
+      const response = await handleQueryExecution(userMessage.content);
+      
+      const systemMessage = {
+        type: 'system',
+        content: response.status === 'success' 
+          ? 'Here are the results for your query.'
+          : response.message || 'Sorry, I could not process your query.',
+        timestamp: new Date().toISOString(),
+        queryResult: response.status === 'success' ? response : null
+      };
+      setMessages(prev => [...prev, systemMessage]);
+    } catch (error) {
+      const errorMessage = {
+        type: 'system',
+        content: 'Sorry, an error occurred while processing your query.',
+        timestamp: new Date().toISOString(),
+        error: true
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    }
+  };
+
+  const handleUpdateWidget = async () => {
+    if (!queryResult || !selectedWidget) return;
+
+    try {
+      const chartData = {
+        type: 'bar',
+        data: queryResult.result,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            },
+            title: {
+              display: true,
+              text: currentMessage
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      };
+
+      const updatedWidget = {
+        ...selectedWidget,
+        natural_language_query: currentMessage,
+        sql_query: queryResult.sql_query,
+        visualization_settings: {
+          chartType: 'bar',
+          chartData: chartData
+        }
+      };
+
+      const response = await dashboardAPI.updateWidget(selectedWidget.id, updatedWidget);
+      
+      if (response.status === 'success') {
+        // Update the widget in the dashboard state
+        setDashboard(prev => ({
+          ...prev,
+          widgets: prev.widgets.map(w => 
+            w.id === selectedWidget.id ? updatedWidget : w
+          )
+        }));
+        
+        // Close the popup
+        handleClosePopup();
+      }
+    } catch (err) {
+      console.error('Error updating widget:', err);
+      setError('Failed to update widget');
+    }
+  };
+
+  const handleClosePopup = () => {
+    setIsEditPopupOpen(false);
+    setSelectedWidget(null);
+    setMessages([]);
+    setCurrentMessage('');
+    setQueryResult(null);
+  };
+
   if (isLoading) {
     return (
       <Layout>
@@ -447,30 +567,34 @@ const DashboardView = () => {
                     {/* Increased z-index and added pointer-events-auto to ensure clickability */}
                     <div className="absolute top-2 right-2 z-[999] pointer-events-auto flex space-x-1">
                       {/* Edit Button */}
-                      <Link href={`/connections/${connectionId}/dashboard/${dashboardId}/edit`}>
-                        <button
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                          }}
-                          className="text-gray-400 hover:text-blue-600 transition-colors p-1 rounded-full hover:bg-gray-100"
-                          title="Edit widget"
+                      <button
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setSelectedWidget(widget);
+                          setIsEditPopupOpen(true);
+                        }}
+                        className="text-gray-400 hover:text-blue-600 transition-colors p-1 rounded-full hover:bg-gray-100"
+                        title="Edit widget"
+                      >
+                        <svg 
+                          className="h-5 w-5" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
                         >
-                          <svg 
-                            className="h-5 w-5" 
-                            fill="none" 
-                            stroke="currentColor" 
-                            viewBox="0 0 24 24"
-                          >
-                            <path 
-                              strokeLinecap="round" 
-                              strokeLinejoin="round" 
-                              strokeWidth={2} 
-                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
-                            />
-                          </svg>
-                        </button>
-                      </Link>
+                          <path 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round" 
+                            strokeWidth={2} 
+                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
+                          />
+                        </svg>
+                      </button>
 
                       {/* Delete Button */}
                       <button
@@ -530,6 +654,73 @@ const DashboardView = () => {
           </div>
         </div>
       </div>
+      {isEditPopupOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+          <div className="bg-white rounded-lg w-full max-w-4xl h-[80vh] flex flex-col relative">
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+              <h2 className="text-xl font-semibold">Edit Widget</h2>
+              <button
+                onClick={handleClosePopup}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-auto p-4">
+              <div className="space-y-4">
+                {messages.map((message, index) => (
+                  <div
+                    key={index}
+                    className={`p-4 rounded-lg ${
+                      message.type === 'user' ? 'bg-blue-100' : 'bg-gray-100'
+                    }`}
+                  >
+                    <p>{message.content}</p>
+                    {message.queryResult && (
+                      <div className="mt-4 h-64">
+                        <ResultGraph
+                          data={message.queryResult.result}
+                          sql={message.queryResult.sql_query}
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-gray-200">
+              <div className="flex space-x-2">
+                <input
+                  type="text"
+                  value={currentMessage}
+                  onChange={(e) => setCurrentMessage(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                  placeholder="Ask a question..."
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <Button
+                  onClick={handleSendMessage}
+                  disabled={isExecuting || !currentMessage.trim()}
+                  variant="primary"
+                >
+                  {isExecuting ? 'Executing...' : 'Execute Query'}
+                </Button>
+                <Button
+                  onClick={handleUpdateWidget}
+                  disabled={!queryResult}
+                  variant="primary"
+                >
+                  Save Chart
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 };
