@@ -302,7 +302,9 @@ const ResultGraph = ({
         beginAtZero: true,
         title: {
           display: true,
-          text: data && data[0] ? Object.keys(data[0])[0].replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim() : 'Value',
+          text: data && data[0] ? 
+            (Object.keys(data[0])[0] || '').replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim() 
+            : 'Value',
           font: {
             weight: 'bold'
           }
@@ -318,7 +320,9 @@ const ResultGraph = ({
       x: {
         title: {
           display: true,
-          text: data && data[0] ? Object.keys(data[0])[1].replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim() : 'Month',
+          text: data && data[0] && Object.keys(data[0]).length > 1 ? 
+            (Object.keys(data[0])[1] || '').replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim() 
+            : 'Category',
           font: {
             weight: 'bold'
           }
