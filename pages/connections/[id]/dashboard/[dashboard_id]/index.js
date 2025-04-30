@@ -730,41 +730,7 @@ const DashboardView = () => {
                 </div>
               </div>
 
-              {/* Visualization Tabs */}
-              <div className="mb-6 sticky top-0 bg-white z-10">
-                <div className="border-b border-gray-200">
-                  <nav className="-mb-px flex space-x-8">
-                    <button className="border-blue-500 text-blue-600 border-b-2 py-2 px-1 text-sm font-medium">
-                      Graph View
-                    </button>
-                    <button className="text-gray-500 hover:text-gray-700 py-2 px-1 text-sm font-medium">
-                      Data View
-                    </button>
-                    <button className="text-gray-500 hover:text-gray-700 py-2 px-1 text-sm font-medium">
-                      SQL Query
-                    </button>
-                  </nav>
-                </div>
-              </div>
 
-              {/* Chart Type Selection */}
-              <div className="mb-6 flex space-x-2">
-                <button className="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200">
-                  Bar
-                </button>
-                <button className="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200">
-                  Line
-                </button>
-                <button className="px-3 py-1 bg-blue-500 text-white rounded">
-                  Doughnut
-                </button>
-                <button className="px-3 py-1 bg-green-500 text-white rounded ml-auto">
-                  Download PNG
-                </button>
-                <button className="px-3 py-1 bg-green-500 text-white rounded">
-                  Download CSV
-                </button>
-              </div>
 
               {/* Chart Display */}
               <div className="bg-gray-50 rounded-lg p-4 mb-6" style={{ height: '400px' }}>
