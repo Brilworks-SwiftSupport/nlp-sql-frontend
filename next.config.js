@@ -1,7 +1,7 @@
 // next.config.js
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
+  reactStrictMode: false, // Change this to false to prevent double API calls
   swcMinify: true,
   async rewrites() {
     return [
