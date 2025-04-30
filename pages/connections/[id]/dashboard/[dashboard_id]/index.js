@@ -392,8 +392,22 @@ const DashboardView = () => {
     if (!queryResult || !selectedWidget) return;
 
     try {
+      // Get the last user message from the messages array
+      const lastUserMessage = messages
+        .filter(msg => msg.type === 'user')
+        .pop()?.content;
+
+      // Use the last message or fall back to existing values
+      const widgetName = lastUserMessage || selectedWidget.name;
+      const naturalLanguageQuery = lastUserMessage || selectedWidget.natural_language_query;
+
+      if (!widgetName || !naturalLanguageQuery) {
+        setError('Widget name and query cannot be empty');
+        return;
+      }
+
       const chartData = {
-        type: 'bar',
+        type: 'bar', // or get from state if you have chart type selection
         data: queryResult.result,
         options: {
           responsive: true,
@@ -404,7 +418,7 @@ const DashboardView = () => {
             },
             title: {
               display: true,
-              text: currentMessage
+              text: widgetName
             }
           },
           scales: {
@@ -415,33 +429,43 @@ const DashboardView = () => {
         }
       };
 
-      const updatedWidget = {
-        ...selectedWidget,
-        natural_language_query: currentMessage,
+      // Structure the update data to match the backend expectations
+      const updateData = {
+        name: widgetName,
+        widget_type: selectedWidget.widget_type || 'chart',
+        natural_language_query: naturalLanguageQuery,
         sql_query: queryResult.sql_query,
         visualization_settings: {
-          chartType: 'bar',
+          chartType: 'bar', // or get from state if you have chart type selection
           chartData: chartData
-        }
+        },
+        position: selectedWidget.position,
+        size: selectedWidget.size,
+        refresh_interval: selectedWidget.refresh_interval || 0
       };
 
-      const response = await dashboardAPI.updateWidget(selectedWidget.id, updatedWidget);
+      // Log the data being sent for debugging
+      console.log('Sending update data:', updateData);
+
+      const response = await dashboardAPI.updateWidget(selectedWidget.id, updateData);
       
       if (response.status === 'success') {
         // Update the widget in the dashboard state
         setDashboard(prev => ({
           ...prev,
           widgets: prev.widgets.map(w => 
-            w.id === selectedWidget.id ? updatedWidget : w
+            w.id === selectedWidget.id ? response.widget : w
           )
         }));
         
         // Close the popup
         handleClosePopup();
+      } else {
+        throw new Error(response.message || 'Failed to update widget');
       }
     } catch (err) {
       console.error('Error updating widget:', err);
-      setError('Failed to update widget');
+      setError(err.message || 'Failed to update widget');
     }
   };
 
@@ -451,6 +475,33 @@ const DashboardView = () => {
     setMessages([]);
     setCurrentMessage('');
     setQueryResult(null);
+  };
+
+  const handleEditWidget = (widget) => {
+    setSelectedWidget(widget);
+    // Initialize currentMessage with either natural_language_query or name
+    setCurrentMessage(widget.natural_language_query || widget.name || '');
+    setQueryResult({
+      result: widget.visualization_settings?.chartData?.data,
+      sql_query: widget.sql_query
+    });
+    setMessages([
+      {
+        type: 'user',
+        content: widget.natural_language_query || widget.name,
+        timestamp: new Date().toISOString()
+      },
+      {
+        type: 'system',
+        content: 'Current widget visualization:',
+        timestamp: new Date().toISOString(),
+        queryResult: {
+          result: widget.visualization_settings?.chartData?.data,
+          sql_query: widget.sql_query
+        }
+      }
+    ]);
+    setIsEditPopupOpen(true);
   };
 
   if (isLoading) {
@@ -575,8 +626,7 @@ const DashboardView = () => {
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          setSelectedWidget(widget);
-                          setIsEditPopupOpen(true);
+                          handleEditWidget(widget);
                         }}
                         className="text-gray-400 hover:text-blue-600 transition-colors p-1 rounded-full hover:bg-gray-100"
                         title="Edit widget"
@@ -654,10 +704,11 @@ const DashboardView = () => {
           </div>
         </div>
       </div>
-      {isEditPopupOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-          <div className="bg-white rounded-lg w-full max-w-4xl h-[80vh] flex flex-col relative">
-            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+      {isEditPopupOpen && selectedWidget && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center overflow-y-auto">
+          <div className="bg-white rounded-lg w-full max-w-4xl m-4 flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center shrink-0">
               <h2 className="text-xl font-semibold">Edit Widget</h2>
               <button
                 onClick={handleClosePopup}
@@ -669,31 +720,67 @@ const DashboardView = () => {
               </button>
             </div>
 
-            <div className="flex-1 overflow-auto p-4">
-              <div className="space-y-4">
-                {messages.map((message, index) => (
-                  <div
-                    key={index}
-                    className={`p-4 rounded-lg ${
-                      message.type === 'user' ? 'bg-blue-100' : 'bg-gray-100'
-                    }`}
-                  >
-                    <p>{message.content}</p>
-                    {message.queryResult && (
-                      <div className="mt-4 h-64">
-                        <ResultGraph
-                          data={message.queryResult.result}
-                          sql={message.queryResult.sql_query}
-                        />
-                      </div>
-                    )}
-                  </div>
-                ))}
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {/* Current Query Display */}
+              <div className="mb-6">
+                <p className="text-sm font-medium text-gray-700 mb-2">Current Query:</p>
+                <div className="bg-blue-50 p-3 rounded-lg">
+                  <p className="text-gray-800">{selectedWidget.natural_language_query || selectedWidget.name}</p>
+                </div>
+              </div>
+
+              {/* Visualization Tabs */}
+              <div className="mb-6 sticky top-0 bg-white z-10">
+                <div className="border-b border-gray-200">
+                  <nav className="-mb-px flex space-x-8">
+                    <button className="border-blue-500 text-blue-600 border-b-2 py-2 px-1 text-sm font-medium">
+                      Graph View
+                    </button>
+                    <button className="text-gray-500 hover:text-gray-700 py-2 px-1 text-sm font-medium">
+                      Data View
+                    </button>
+                    <button className="text-gray-500 hover:text-gray-700 py-2 px-1 text-sm font-medium">
+                      SQL Query
+                    </button>
+                  </nav>
+                </div>
+              </div>
+
+              {/* Chart Type Selection */}
+              <div className="mb-6 flex space-x-2">
+                <button className="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200">
+                  Bar
+                </button>
+                <button className="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200">
+                  Line
+                </button>
+                <button className="px-3 py-1 bg-blue-500 text-white rounded">
+                  Doughnut
+                </button>
+                <button className="px-3 py-1 bg-green-500 text-white rounded ml-auto">
+                  Download PNG
+                </button>
+                <button className="px-3 py-1 bg-green-500 text-white rounded">
+                  Download CSV
+                </button>
+              </div>
+
+              {/* Chart Display */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-6" style={{ height: '400px' }}>
+                {queryResult && (
+                  <ResultGraph
+                    data={queryResult.result}
+                    sql={queryResult.sql_query}
+                    maxHeight="100%"
+                  />
+                )}
               </div>
             </div>
 
-            <div className="p-4 border-t border-gray-200">
-              <div className="flex space-x-2">
+            {/* Footer */}
+            <div className="p-4 border-t border-gray-200 shrink-0">
+              <div className="flex items-center space-x-2">
                 <input
                   type="text"
                   value={currentMessage}
@@ -702,20 +789,28 @@ const DashboardView = () => {
                   placeholder="Ask a question..."
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                <Button
+                <button
                   onClick={handleSendMessage}
-                  disabled={isExecuting || !currentMessage.trim()}
-                  variant="primary"
+                  disabled={isExecuting}
+                  className={`px-4 py-2 rounded-lg ${
+                    isExecuting 
+                      ? 'bg-gray-300 cursor-not-allowed' 
+                      : 'bg-blue-500 hover:bg-blue-600 text-white'
+                  }`}
                 >
                   {isExecuting ? 'Executing...' : 'Execute Query'}
-                </Button>
-                <Button
+                </button>
+                <button
                   onClick={handleUpdateWidget}
                   disabled={!queryResult}
-                  variant="primary"
+                  className={`px-4 py-2 rounded-lg ${
+                    !queryResult 
+                      ? 'bg-gray-300 cursor-not-allowed' 
+                      : 'bg-blue-500 hover:bg-blue-600 text-white'
+                  }`}
                 >
                   Save Chart
-                </Button>
+                </button>
               </div>
             </div>
           </div>
