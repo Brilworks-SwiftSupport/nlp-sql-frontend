@@ -89,7 +89,7 @@ const DashboardEditPage = () => {
   const fetchConversations = async () => {
     try {
       console.log('Fetching conversations...');
-      const response = await  conversationAPI.getConversations(connectionId);
+      const response = await conversationAPI.getConversations(connectionId);
       if (response.status === 'success') {
         console.log('Conversations fetched:', response.conversations);
         setConversations(response.conversations);
@@ -100,6 +100,10 @@ const DashboardEditPage = () => {
           const mostRecent = response.conversations[0];
           setCurrentConversation(mostRecent);
           await fetchMessages(mostRecent.id);
+        } else if (response.conversations.length === 0) {
+          // No conversations exist for this connection, create a new one
+          console.log('No conversations found, creating a new one...');
+          await createNewConversation();
         }
       }
     } catch (error) {
