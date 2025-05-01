@@ -202,6 +202,11 @@ export default function Dashboard() {
                           {query.sql_query}
                         </pre>
                       </div>
+                      <div className="mt-2">
+                        <pre className="mt-1 text-sm text-gray-600 overflow-x-auto bg-gray-50 p-2 rounded">
+                          {query.ai_response}
+                        </pre>
+                      </div>
                     </div>
                   </li>
                 ))}
