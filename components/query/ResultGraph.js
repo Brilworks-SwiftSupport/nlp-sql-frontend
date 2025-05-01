@@ -38,10 +38,49 @@ const ResultGraph = ({
   const [chartType, setChartType] = useState('bar');
   const [activeTab, setActiveTab] = useState('graph');
   const [copiedSQL, setCopiedSQL] = useState(false);
-  const [swappedAxes, setSwappedAxes] = useState(false); // New state for axis swapping
+  const [xAxisField, setXAxisField] = useState('');
+  const [yAxisField, setYAxisField] = useState('');
+
+  const availableFields = useMemo(() => {
+    if (!data || data.length === 0) return [];
+    return Object.keys(data[0]);
+  }, [data]);
+
+  // Set default axis fields when data changes
+  useEffect(() => {
+    if (!data || data.length === 0) return;
+    
+    const keys = Object.keys(data[0]);
+    
+    // Find numeric columns
+    const numericColumns = keys.filter(key => {
+      const value = data[0][key];
+      return typeof value === 'number' || (!isNaN(parseFloat(value)) && value !== null && value !== '');
+    });
+    
+    // Find categorical columns
+    const categoricalColumns = keys.filter(key => 
+      !numericColumns.includes(key)
+    );
+    
+    // Set defaults - prefer categorical for X and numeric for Y
+    if (categoricalColumns.length > 0) {
+      setXAxisField(categoricalColumns[0]);
+    } else if (keys.length > 0) {
+      setXAxisField(keys[0]);
+    }
+    
+    if (numericColumns.length > 0) {
+      setYAxisField(numericColumns[0]);
+    } else if (keys.length > 1) {
+      setYAxisField(keys[1]);
+    } else if (keys.length > 0) {
+      setYAxisField(keys[0]);
+    }
+  }, [data]);
 
   const chartData = useMemo(() => {
-    if (!data || data.length === 0) return null;
+    if (!data || data.length === 0 || !xAxisField || !yAxisField) return null;
 
     const firstRow = data[0];
     const keys = Object.keys(firstRow);
@@ -68,128 +107,28 @@ const ResultGraph = ({
       };
     }
 
-    // Special handling for two-column data
-    if (keys.length === 2) {
-      // First, identify which column is numeric and which is categorical/date
-      const numericColumn = keys.find(key => {
-        const value = firstRow[key];
-        return typeof value === 'number' || (!isNaN(parseFloat(value)) && value !== null && value !== '');
-      });
-      const categoryColumn = keys.find(key => key !== numericColumn);
-
-      // Always ensure numeric values go on y-axis
-      const yAxisColumn = numericColumn;
-      const xAxisColumn = categoryColumn;
-
-      // Format labels (x-axis)
-      const labels = data.map(row => {
-        const value = row[xAxisColumn];
-        // Handle month numbers
-        if (!isNaN(value) && value >= 1 && value <= 12) {
-          return new Date(2024, value - 1).toLocaleString('default', { month: 'long' });
-        }
-        return value?.toString() || '';
-      });
-
-      return {
-        labels,
-        datasets: [{
-          label: yAxisColumn.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim(),
-          data: data.map(row => parseFloat(row[yAxisColumn])),
-          backgroundColor: `hsla(${Math.random() * 360}, 70%, 50%, 0.6)`,
-          borderColor: `hsla(${Math.random() * 360}, 70%, 50%, 1)`,
-          borderWidth: 1,
-          yAxisID: 'y'
-        }]
-      };
-    }
-
-    // Find numeric columns
-    const numericColumns = keys.filter(key => {
-      const value = firstRow[key];
-      return typeof value === 'number' || (!isNaN(parseFloat(value)) && value !== null && value !== '');
+    // Format labels (x-axis)
+    const labels = data.map(row => {
+      const value = row[xAxisField];
+      // Handle month numbers
+      if (!isNaN(value) && value >= 1 && value <= 12) {
+        return new Date(2024, value - 1).toLocaleString('default', { month: 'long' });
+      }
+      return value?.toString() || '';
     });
 
-    // Find potential date/time columns
-    const dateColumns = keys.filter(key => {
-      const value = String(firstRow[key]).toLowerCase();
-      return (
-        value.match(/^\d{4}-\d{2}-\d{2}/) || // ISO date
-        value.match(/^\d{2}\/\d{2}\/\d{4}/) || // DD/MM/YYYY
-        value.match(/^\d{4}\/\d{2}\/\d{2}/) || // YYYY/MM/DD
-        /jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec/.test(value) || // Month names
-        key.toLowerCase().includes('date') ||
-        key.toLowerCase().includes('time') ||
-        key.toLowerCase().includes('month') ||
-        key.toLowerCase().includes('year')
-      );
-    });
-
-    // Find categorical columns (non-numeric, non-date)
-    const categoricalColumns = keys.filter(key => 
-      !numericColumns.includes(key) && !dateColumns.includes(key)
-    );
-
-    // Case 1: Single row with multiple numeric values
-    if (data.length === 1 && numericColumns.length > 0) {
-      return {
-        labels: numericColumns.map(col => col.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()),
-        datasets: [{
-          label: 'Values',
-          data: numericColumns.map(col => parseFloat(firstRow[col])),
-          backgroundColor: numericColumns.map(() => `hsla(${Math.random() * 360}, 70%, 50%, 0.6)`),
-          borderColor: numericColumns.map(() => `hsla(${Math.random() * 360}, 70%, 50%, 1)`),
-          borderWidth: 1,
-        }]
-      };
-    }
-
-    // Case 2: Time series data
-    if (dateColumns.length > 0 && numericColumns.length > 0) {
-      const dateColumn = dateColumns[0];
-      return {
-        labels: data.map(row => row[dateColumn]),
-        datasets: numericColumns.map(column => ({
-          label: column.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim(),
-          data: data.map(row => parseFloat(row[column])),
-          backgroundColor: `hsla(${Math.random() * 360}, 70%, 50%, 0.6)`,
-          borderColor: `hsla(${Math.random() * 360}, 70%, 50%, 1)`,
-          borderWidth: 1,
-        }))
-      };
-    }
-
-    // Case 3: Categorical data with numeric values
-    if (categoricalColumns.length > 0 && numericColumns.length > 0) {
-      const categoryColumn = categoricalColumns[0];
-      return {
-        labels: data.map(row => row[categoryColumn]),
-        datasets: numericColumns.map(column => ({
-          label: column.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim(),
-          data: data.map(row => parseFloat(row[column])),
-          backgroundColor: `hsla(${Math.random() * 360}, 70%, 50%, 0.6)`,
-          borderColor: `hsla(${Math.random() * 360}, 70%, 50%, 1)`,
-          borderWidth: 1,
-        }))
-      };
-    }
-
-    // Case 4: Only numeric columns
-    if (numericColumns.length > 0) {
-      return {
-        labels: data.map((_, index) => `Row ${index + 1}`),
-        datasets: numericColumns.map(column => ({
-          label: column.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim(),
-          data: data.map(row => parseFloat(row[column])),
-          backgroundColor: `hsla(${Math.random() * 360}, 70%, 50%, 0.6)`,
-          borderColor: `hsla(${Math.random() * 360}, 70%, 50%, 1)`,
-          borderWidth: 1,
-        }))
-      };
-    }
-
-    return null;
-  }, [data]);
+    return {
+      labels,
+      datasets: [{
+        label: yAxisField.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim(),
+        data: data.map(row => parseFloat(row[yAxisField])),
+        backgroundColor: `hsla(${Math.random() * 360}, 70%, 50%, 0.6)`,
+        borderColor: `hsla(${Math.random() * 360}, 70%, 50%, 1)`,
+        borderWidth: 1,
+        yAxisID: 'y'
+      }]
+    };
+  }, [data, xAxisField, yAxisField]);
 
   // Automatically determine the best chart type
   useEffect(() => {
@@ -290,62 +229,61 @@ const ResultGraph = ({
     return <div className="text-center text-gray-500 py-8">{emptyMessage}</div>;
   }
 
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: 'top',
-        display: chartData.datasets.length > 1 || chartType === 'doughnut',
-      },
-      title: {
-        display: true,
-        text: title,
-      },
-    },
-    scales: chartType !== 'doughnut' ? {
-      y: {
-        beginAtZero: true,
+  const renderChart = () => {
+    const options = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top',
+          display: chartData.datasets.length > 1 || chartType === 'doughnut',
+        },
         title: {
           display: true,
-          text: data && data[0] ? 
-            (Object.keys(data[0]).find(key => {
-              const value = data[0][key];
-              return typeof value === 'number' || (!isNaN(parseFloat(value)) && value !== null);
-            }) || '').replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()
-            : 'Value',
-          font: {
-            weight: 'bold'
-          }
+          text: title,
         },
-        ticks: {
-          callback: (value) => {
-            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
-            if (value >= 1000) return (value / 1000).toFixed(1) + 'K';
-            return value;
-          }
-        }
       },
-      x: {
-        title: {
-          display: true,
-          text: data && data[0] ? 
-            (Object.keys(data[0]).find(key => {
-              const value = data[0][key];
-              return typeof value !== 'number' && isNaN(parseFloat(value));
-            }) || '').replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()
-            : 'Category',
-          font: {
-            weight: 'bold'
+      scales: chartType !== 'doughnut' ? {
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: yAxisField.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim(),
+            font: {
+              weight: 'bold'
+            }
+          },
+          ticks: {
+            callback: (value) => {
+              if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
+              if (value >= 1000) return (value / 1000).toFixed(1) + 'K';
+              return value;
+            }
           }
         },
-        ticks: {
-          maxRotation: 45,
-          minRotation: 45
+        x: {
+          title: {
+            display: true,
+            text: xAxisField.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim(),
+            font: {
+              weight: 'bold'
+            }
+          },
+          ticks: {
+            maxRotation: 45,
+            minRotation: 45
+          }
         }
-      }
-    } : undefined,
-    indexAxis: swappedAxes ? 'y' : 'x', // This will swap the axes when true
+      } : undefined,
+    };
+
+    return (
+      <div ref={chartRef} style={{ height: '100%' }}>
+        {chartType === 'bar' && <Bar data={chartData} options={options} />}
+        {chartType === 'line' && <Line data={chartData} options={options} />}
+        {chartType === 'doughnut' && <Doughnut data={chartData} options={options} />}
+      </div>
+    );
   };
 
   return (
@@ -404,15 +342,60 @@ const ResultGraph = ({
             >
               Doughnut
             </button>
-            {/* Add axis swap button */}
+            {/* Axis selection dropdowns */}
             {chartType !== 'doughnut' && (
-              <button
-                onClick={() => setSwappedAxes(!swappedAxes)}
-                className={`px-3 py-1 rounded ${swappedAxes ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
-                title="Swap X/Y axes"
-              >
-                Swap Axes
-              </button>
+              <div className="flex space-x-2">
+                <div className="flex flex-col">
+                  <select
+                    value={xAxisField}
+                    onChange={(e) => setXAxisField(e.target.value)}
+                    className="px-3 py-1.5 text-sm border border-gray-300 rounded bg-white shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    style={{
+                      maxWidth: '100px',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden'
+                    }}
+                    title={xAxisField} // Show full field name on hover
+                  >
+                    <option value="" disabled>Select X-Axis</option>
+                    {availableFields.map(field => (
+                      <option 
+                        key={`x-${field}`} 
+                        value={field}
+                        title={field} // Show full field name on hover
+                      >
+                        {field}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-col">
+                  <select
+                    value={yAxisField}
+                    onChange={(e) => setYAxisField(e.target.value)}
+                    className="px-3 py-1.5 text-sm border border-gray-300 rounded bg-white shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    style={{
+                      maxWidth: '100px',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden'
+                    }}
+                    title={yAxisField} // Show full field name on hover
+                  >
+                    <option value="" disabled>Select Y-Axis</option>
+                    {availableFields.map(field => (
+                      <option 
+                        key={`y-${field}`} 
+                        value={field}
+                        title={field} // Show full field name on hover
+                      >
+                        {field}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             )}
             <button
               onClick={downloadImage}
@@ -434,11 +417,7 @@ const ResultGraph = ({
       
       <div style={{ height: maxHeight }}>
         {activeTab === 'graph' ? (
-          <div ref={chartRef} style={{ height: '100%' }}>
-            {chartType === 'bar' && <Bar data={chartData} options={chartOptions} />}
-            {chartType === 'line' && <Line data={chartData} options={chartOptions} />}
-            {chartType === 'doughnut' && <Doughnut data={chartData} options={chartOptions} />}
-          </div>
+          renderChart()
         ) : activeTab === 'data' ? (
           renderDataTable()
         ) : (

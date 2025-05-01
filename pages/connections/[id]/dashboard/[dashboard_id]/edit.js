@@ -1,4 +1,4 @@
-// pages/connections/[id]/dashboard/[dashboard_id]/edit.js
+
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
@@ -277,17 +277,34 @@ const DashboardEditPage = () => {
           {/* Message Input */}
           <div className="p-4 border-t border-gray-200">
             <form onSubmit={handleSendMessage} className="flex space-x-2">
-              <input
-                type="text"
+              <textarea
                 value={currentMessage}
                 onChange={(e) => setCurrentMessage(e.target.value)}
                 placeholder="Ask a question about your data..."
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                style={{ 
+                  overflow: 'hidden',
+                  height: '40px',
+                  maxHeight: '80px'
+                }}
+                rows="1"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    if (currentMessage.trim()) {
+                      handleSendMessage(e);
+                    }
+                  }
+                }}
+                onInput={(e) => {
+                  e.target.style.height = 'auto';
+                  e.target.style.height = Math.min(e.target.scrollHeight, 80) + 'px';
+                }}
               />
               <button
                 type="submit"
                 disabled={!currentMessage.trim()}
-                className={`px-4 py-2 rounded-full bg-blue-600 text-white flex items-center justify-center ${
+                className={`px-4 py-2 rounded-full bg-blue-600 text-white flex items-center justify-center flex-shrink-0 ${
                   !currentMessage.trim() ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'
                 }`}
               >
@@ -296,6 +313,9 @@ const DashboardEditPage = () => {
                 </svg>
               </button>
             </form>
+            <div className="text-xs text-gray-500 mt-1">
+              Press Enter to send, Shift+Enter for new line
+            </div>
           </div>
         </div>
         {/* Divider */}
