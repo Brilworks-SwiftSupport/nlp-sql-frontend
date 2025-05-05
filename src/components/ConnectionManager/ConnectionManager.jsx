@@ -150,9 +150,9 @@ const ConnectionManager = ({ onClose, connectionToEdit = null }) => {
             setConnectionData(prev => ({
               ...prev,
               id: connectionToEdit.id,
-              selected_tables: response.metadata.selected_tables || [],
-              selected_columns: response.metadata.selected_columns || {},
-              relationships: response.metadata.relationships || []
+              selected_tables: response.schema_data.metadata.selected_tables || [],
+              selected_columns: response.schema_data.metadata.selected_columns || {},
+              relationships: response.schema_data.metadata.relationships || []
             }));
             
             console.log('Metadata loaded successfully');
