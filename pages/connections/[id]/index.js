@@ -21,6 +21,7 @@ const ConnectionDetailPage = () => {
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
   const [error, setError] = useState(null);
+  const [isResyncing, setIsResyncing] = useState(false);
   
   useEffect(() => {
     if (!id) return;
@@ -101,6 +102,35 @@ const ConnectionDetailPage = () => {
       setIsTesting(false);
     }
   };
+
+  const handleResync = async () => {
+    try {
+      setIsResyncing(true);
+      setError(null);
+      
+      const response = await connectionAPI.resync(id);
+      
+      if (response.status === 'success') {
+        // Show success message or refresh connection data
+        setTestResult({
+          success: true,
+          message: response.message || 'Connection resynced successfully'
+        });
+        
+        // Optionally refresh connection data
+        const connectionResponse = await connectionAPI.getConnection(id);
+        if (connectionResponse.status === 'success') {
+          setConnection(connectionResponse.connection);
+        }
+      } else {
+        setError(response.message || 'Failed to resync connection');
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'An error occurred while resyncing the connection');
+    } finally {
+      setIsResyncing(false);
+    }
+  };
   
   if (isLoading) {
     return (
@@ -162,7 +192,16 @@ const ConnectionDetailPage = () => {
                 Test Connection
               </Button>
               
-              <Link href={`/connections/${id}/tables`}>
+              <Button
+                variant="outline"
+                onClick={handleResync}
+                isLoading={isResyncing}
+                loadingText="Resyncing..."
+              >
+                Resync
+              </Button>
+              
+              <Link href={`/connections/${id}/edit`}>
                 <Button variant="outline">
                   Manage Tables
                 </Button>
