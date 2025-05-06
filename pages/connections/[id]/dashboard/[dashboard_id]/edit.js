@@ -9,6 +9,7 @@ import Alert from '../../../../../components/common/Alert';
 import { dashboardAPI, queryAPI,conversationAPI } from '../../../../../lib/api';
 import ResultGraph from '../../../../../components/query/ResultGraph';
 import axios from '../../../../../lib/api';
+import { showSuccess, showError } from '../../../../../lib/toast';
 
 const DashboardEditPage = () => {
   const router = useRouter();
@@ -26,6 +27,7 @@ const DashboardEditPage = () => {
   const [conversations, setConversations] = useState([]);
   const [currentConversation, setCurrentConversation] = useState(null);
   const [isConversationListOpen, setIsConversationListOpen] = useState(false);
+  const [chartPreferences, setChartPreferences] = useState(null);
 
   // Resizable column state
   const [leftWidth, setLeftWidth] = useState(350); // px
@@ -103,6 +105,7 @@ const DashboardEditPage = () => {
         } else if (response.conversations.length === 0) {
           // No conversations exist for this connection, create a new one
           console.log('No conversations found, creating a new one...');
+          
           await createNewConversation();
         }
       }
@@ -179,19 +182,20 @@ const DashboardEditPage = () => {
         
         // Update the conversations list
         await fetchConversations();
+        showSuccess('New conversation created');
       }
     } catch (error) {
       console.error('Failed to create new conversation:', error);
-      setError('Failed to create new conversation');
+      showError('Failed to create new conversation');
     }
   };
 
   // Save messages to localStorage whenever they change
-  useEffect(() => {
-    if (currentConversation) {
-      localStorage.setItem(`chat_history_${currentConversation.id}`, JSON.stringify(messages));
-    }
-  }, [messages, currentConversation]);
+  // useEffect(() => {
+  //   if (currentConversation) {
+  //     localStorage.setItem(`chat_history_${currentConversation.id}`, JSON.stringify(messages));
+  //   }
+  // }, [messages, currentConversation]);
 
   // Scroll to bottom of chat when new messages are added
   const scrollToBottom = () => {
@@ -224,10 +228,12 @@ const DashboardEditPage = () => {
       }
       
       setError(response.message || 'Query execution failed');
+      showError(response.message || 'Query execution failed');
       return { status: 'error', message: response.message };
     } catch (err) {
       const errorMessage = err.response?.data?.message || 'An error occurred while executing the query';
       setError(errorMessage);
+      showError(errorMessage);
       return { status: 'error', message: errorMessage };
     } finally {
       setIsLoading(false);
@@ -246,16 +252,54 @@ const DashboardEditPage = () => {
         h: 2
       };
 
-      // Prepare chart data structure
+      // Get user-selected chart preferences from ResultGraph if available
+      const chartType = chartConfig?.chartType || result.chartPreferences?.chartType || 'bar';
+      const xAxisField = result.chartPreferences?.xAxisField || '';
+      const yAxisField = result.chartPreferences?.yAxisField || '';
+      const colors = result.chartPreferences?.colors || {};
+      
+      // Create datasets with colors
+      const datasets = [];
+      if (result.result && result.result.length > 0) {
+        // For doughnut charts or single value metrics
+        if (chartType === 'doughnut' && result.result.length === 1) {
+          const firstRow = result.result[0];
+          const keys = Object.keys(firstRow);
+          
+          datasets.push({
+            data: keys.map(key => parseFloat(firstRow[key]) || 0),
+            backgroundColor: keys.map((_, i) => 
+              colors[i]?.backgroundColor || `hsla(${i * 137.5 % 360}, 70%, 50%, 0.6)`
+            ),
+            borderColor: keys.map((_, i) => 
+              colors[i]?.borderColor || `hsla(${i * 137.5 % 360}, 70%, 50%, 1)`
+            ),
+            borderWidth: 1
+          });
+        } 
+        // For bar and line charts
+        else {
+          datasets.push({
+            label: yAxisField.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim(),
+            data: result.result.map(row => parseFloat(row[yAxisField]) || 0),
+            backgroundColor: colors[0]?.backgroundColor || 'hsla(210, 70%, 50%, 0.6)',
+            borderColor: colors[0]?.borderColor || 'hsla(210, 70%, 50%, 1)',
+            borderWidth: 1
+          });
+        }
+      }
+      
+      // Prepare chart data structure with user selections
       const chartData = {
-        type: chartConfig?.chartType || 'bar',
+        type: chartType,
         data: result.result, // Store the raw data
+        datasets: datasets,
         options: {
           responsive: true,
           maintainAspectRatio: false,
           plugins: {
             legend: {
-              display: chartConfig?.showLegend || false
+              display: chartPreferences?.showLegend || false
             },
             title: {
               display: true,
@@ -264,7 +308,17 @@ const DashboardEditPage = () => {
           },
           scales: {
             y: {
-              beginAtZero: true
+              beginAtZero: true,
+              title: {
+                display: !!chartPreferences?.yAxisField,
+                text: chartPreferences?.yAxisField?.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim() || ''
+              }
+            },
+            x: {
+              title: {
+                display: !!chartPreferences?.xAxisField,
+                text: chartPreferences?.xAxisField?.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim() || ''
+              }
             }
           }
         }
@@ -277,8 +331,12 @@ const DashboardEditPage = () => {
         natural_language_query: query,
         sql_query: result.sql_query,
         visualization_settings: {
-          chartType: chartConfig?.chartType || 'bar',
-          chartData: chartData
+          chartType: chartPreferences?.chartType || 'bar',
+          chartData: chartData,
+          axisFields: {
+            xAxis: chartPreferences?.xAxisField || '',
+            yAxis: chartPreferences?.yAxisField || ''
+          }
         },
         position: position,
         refresh_interval: 0
@@ -291,9 +349,13 @@ const DashboardEditPage = () => {
       const newWidget = response.widget;
       setWidgets(prev => [...prev, newWidget]);
       
+      // Show success message
+      showSuccess('Widget added successfully');
+      
     } catch (err) {
       console.error('Error adding widget:', err);
       setError(err.response?.data?.message || 'Failed to add widget');
+      showError(err.response?.data?.message || 'Failed to add widget');
     }
   };
 
@@ -574,55 +636,10 @@ const DashboardEditPage = () => {
                     <div className="flex space-x-3">
                       <Button
                         onClick={() => {
-                          // Prepare visualization settings based on data structure
-                          const data = queryResult.result;
-                          const firstRow = data[0];
-                          const keys = Object.keys(firstRow);
-                          
-                          // Find numeric and non-numeric columns
-                          const numericColumns = keys.filter(key => 
-                            typeof firstRow[key] === 'number' || !isNaN(parseFloat(firstRow[key]))
-                          );
-                          const nonNumericColumns = keys.filter(key => !numericColumns.includes(key));
-                          
-                          // Determine chart type and structure based on data
-                          let chartConfig;
-                          if (data.length === 1) {
-                            // Single row data - use bar chart for comparison
-                            chartConfig = {
-                              type: 'chart',
-                              chartType: 'bar',
-                              title: queryResult.natural_language_query,
-                              showLegend: false,
-                              backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                              borderColor: 'rgba(54, 162, 235, 1)',
-                              borderWidth: 1,
-                              customSettings: {
-                                dataStructure: 'single-row'
-                              }
-                            };
-                          } else if (nonNumericColumns.length >= 1 && numericColumns.length >= 1) {
-                            // Time series or categorical data
-                            chartConfig = {
-                              type: 'chart',
-                              chartType: 'bar',
-                              title: queryResult.natural_language_query,
-                              showLegend: numericColumns.length > 1,
-                              backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                              borderColor: 'rgba(54, 162, 235, 1)',
-                              borderWidth: 1,
-                              customSettings: {
-                                dataStructure: 'time-series',
-                                categoryColumn: nonNumericColumns[0],
-                                valueColumns: numericColumns
-                              }
-                            };
-                          }
-
                           handleAddWidget(
                             queryResult.natural_language_query,
                             queryResult,
-                            chartConfig
+                            chartPreferences
                           );
                         }}
                       >
@@ -637,6 +654,22 @@ const DashboardEditPage = () => {
                       title={queryResult.natural_language_query || "Query Results Visualization"}
                       className="h-[400px]"
                       maxHeight={400}
+                      onChartPreferencesChange={(preferences) => {
+                        setChartPreferences(preferences);
+                        // Update queryResult with the preferences
+                        setQueryResult(prev => ({
+                          ...prev,
+                          chartPreferences: {
+                            ...preferences,
+                            colors: preferences.colors // Make sure colors are included
+                          }
+                        }));
+                      }}
+                      // Pass initial values if available from previous settings
+                      initialChartType={queryResult.chartPreferences?.chartType}
+                      initialXAxisField={queryResult.chartPreferences?.xAxisField}
+                      initialYAxisField={queryResult.chartPreferences?.yAxisField}
+                      initialColors={queryResult.chartPreferences?.colors}
                     />
                   ) : (
                     <div className="text-center text-gray-500 py-8">
