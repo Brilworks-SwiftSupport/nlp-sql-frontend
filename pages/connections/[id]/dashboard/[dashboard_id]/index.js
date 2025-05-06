@@ -101,11 +101,15 @@ const DashboardView = () => {
       
       // Create a map of the old layouts for comparison
       const oldLayoutMap = {};
-      Object.values(oldLayouts).forEach(layout => {
-        layout.forEach(item => {
-          oldLayoutMap[item.i] = item;
+      if (oldLayouts) {
+        Object.values(oldLayouts).forEach(layout => {
+          if (layout) {
+            layout.forEach(item => {
+              oldLayoutMap[item.i] = item;
+            });
+          }
         });
-      });
+      }
 
       // Find widgets whose position or size has changed
       const changedWidgets = currentLayout
@@ -149,22 +153,29 @@ const DashboardView = () => {
         console.log('Layout updated successfully');
         
         // Update the previous layouts reference
-        prevLayouts.current = { ...newLayouts };
+        prevLayouts.current = JSON.parse(JSON.stringify(newLayouts));
         
         // Update the dashboard state with new positions
-        const updatedDashboard = { ...dashboard };
-        updatedDashboard.widgets = updatedDashboard.widgets.map(widget => {
-          const changed = changedWidgets.find(w => w.widget_id === widget.id);
-          if (changed) {
-            return {
-              ...widget,
-              position: changed.position,
-              size: changed.size
-            };
-          }
-          return widget;
+        setDashboard(prev => {
+          if (!prev) return prev;
+          
+          const updatedWidgets = prev.widgets.map(widget => {
+            const changed = changedWidgets.find(w => w.widget_id === widget.id);
+            if (changed) {
+              return {
+                ...widget,
+                position: changed.position,
+                size: changed.size
+              };
+            }
+            return widget;
+          });
+          
+          return {
+            ...prev,
+            widgets: updatedWidgets
+          };
         });
-        setDashboard(updatedDashboard);
       } else {
         console.error('Failed to update layout:', response);
         setError('Failed to save layout changes');
@@ -190,8 +201,6 @@ const DashboardView = () => {
         const dashboardData = response.dashboard.dashboard;
         setDashboard(dashboardData);
         
-        // No need to modify the visualization settings as they come from the API
-        // We'll use them directly in the renderChart function
         // Initialize layouts from widget positions and sizes
         const initialLayouts = {
           lg: dashboardData.widgets.map((widget) => ({
@@ -255,9 +264,17 @@ const DashboardView = () => {
             static: false
           }))
         };
+        
+        console.log('Initial layouts:', initialLayouts);
         setLayouts(initialLayouts);
-        prevLayouts.current = { ...initialLayouts };
-        isInitialLoad.current = false;
+        
+        // Store a deep copy of the initial layouts as the previous layouts reference
+        prevLayouts.current = JSON.parse(JSON.stringify(initialLayouts));
+        
+        // Mark initial load as complete after a short delay
+        setTimeout(() => {
+          isInitialLoad.current = false;
+        }, 500);
       } catch (err) {
         console.error('Error fetching dashboard:', err);
         setError(err.response?.data?.message || err.message || 'Failed to load dashboard');
@@ -347,8 +364,9 @@ const DashboardView = () => {
       return;
     }
     
-    // Save layout changes
-    saveLayout(layouts, prevLayouts.current);
+    // Don't save layout changes immediately on every change
+    // This will be handled by onDragStop and onResizeStop
+    setLayouts(layouts);
   };
 
   // Function to handle drag stop
@@ -360,6 +378,11 @@ const DashboardView = () => {
       xs: layout,
       xxs: layout
     };
+    
+    // Update layouts state
+    setLayouts(layouts);
+    
+    // Save layout changes to backend
     saveLayout(layouts, prevLayouts.current);
   };
 
@@ -372,6 +395,11 @@ const DashboardView = () => {
       xs: layout,
       xxs: layout
     };
+    
+    // Update layouts state
+    setLayouts(layouts);
+    
+    // Save layout changes to backend
     saveLayout(layouts, prevLayouts.current);
   };
 
