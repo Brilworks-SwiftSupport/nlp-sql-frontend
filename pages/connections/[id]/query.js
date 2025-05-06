@@ -203,6 +203,26 @@ const QueryPage = () => {
 
       setError(null);
       
+      // Get chart preferences from the result
+      const chartPreferences = result.chartPreferences || {};
+      
+      // Use chart type from preferences or fall back to config or default
+      const chartType = chartPreferences.chartType || 
+                        chartConfig?.chartType || 
+                        'bar';
+      
+      // Get axis fields from preferences or fall back to config
+      const xAxisField = chartPreferences.xAxisField || 
+                         chartConfig?.customSettings?.categoryColumn || 
+                         '';
+      const yAxisField = chartPreferences.yAxisField || 
+                         (chartConfig?.customSettings?.valueColumns && 
+                          chartConfig.customSettings.valueColumns.length > 0 ? 
+                          chartConfig.customSettings.valueColumns[0] : '');
+      
+      // Get colors from preferences or fall back to config
+      const colors = chartPreferences.colors || {};
+      
       const position = {
         x: 0,
         y: 0, // The dashboard will handle positioning
@@ -210,15 +230,47 @@ const QueryPage = () => {
         h: 2
       };
 
+      // Create datasets with colors
+      const datasets = [];
+      if (result.result && result.result.length > 0) {
+        // For doughnut charts or single value metrics
+        if (chartType === 'doughnut' && result.result.length === 1) {
+          const firstRow = result.result[0];
+          const keys = Object.keys(firstRow);
+          
+          datasets.push({
+            data: keys.map(key => parseFloat(firstRow[key]) || 0),
+            backgroundColor: keys.map((_, i) => 
+              colors[i]?.backgroundColor || `hsla(${i * 137.5 % 360}, 70%, 50%, 0.6)`
+            ),
+            borderColor: keys.map((_, i) => 
+              colors[i]?.borderColor || `hsla(${i * 137.5 % 360}, 70%, 50%, 1)`
+            ),
+            borderWidth: 1
+          });
+        } 
+        // For bar and line charts
+        else {
+          datasets.push({
+            label: yAxisField.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim(),
+            data: result.result.map(row => parseFloat(row[yAxisField]) || 0),
+            backgroundColor: colors[0]?.backgroundColor || 'hsla(210, 70%, 50%, 0.6)',
+            borderColor: colors[0]?.borderColor || 'hsla(210, 70%, 50%, 1)',
+            borderWidth: 1
+          });
+        }
+      }
+
       const chartData = {
-        type: chartConfig?.chartType || 'bar',
+        type: chartType,
         data: result.result,
+        datasets: datasets,
         options: {
           responsive: true,
           maintainAspectRatio: false,
           plugins: {
             legend: {
-              display: chartConfig?.showLegend || false
+              display: chartPreferences.showLegend || chartConfig?.showLegend || false
             },
             title: {
               display: true,
@@ -240,8 +292,12 @@ const QueryPage = () => {
         natural_language_query: query,
         sql_query: result.sql_query,
         visualization_settings: {
-          chartType: chartConfig?.chartType || 'bar',
-          chartData: chartData
+          chartType: chartType,
+          chartData: chartData,
+          axisFields: {
+            xAxis: xAxisField,
+            yAxis: yAxisField
+          }
         },
         position: position,
         refresh_interval: 0
@@ -433,19 +489,28 @@ const QueryPage = () => {
                 </div>
               </div>
               <div className="mt-6">
-              <ResultGraph
-                    data={queryResult.result}
-                    sql={queryResult.sql_query}
-                    title="Query Results Visualization"
-                    className="h-[400px]"
-                  />
+                <ResultGraph
+                  data={queryResult.result}
+                  sql={queryResult.sql_query}
+                  title="Query Results Visualization"
+                  className="h-[400px]"
+                  // Show controls in the query page
+                  hideControls={false}
+                  // Add callback to capture chart preference changes
+                  onChartPreferencesChange={(preferences) => {
+                    // Update the queryResult with the new preferences
+                    setQueryResult(prev => ({
+                      ...prev,
+                      chartPreferences: preferences
+                    }));
+                  }}
+                />
               </div>
               <SqlDisplay sql={queryResult.sql_query} />
               <ResultTable
                 data={queryResult.result}
                 rowCount={queryResult.row_count}
               />
-              
             </div>
           )}
           
