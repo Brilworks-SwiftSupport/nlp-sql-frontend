@@ -8,7 +8,8 @@ const VoiceMode = ({
   onMessageSent, 
   conversationId,
   selectedConnectionId,
-  pairs 
+  pairs,
+  refreshMessages 
 }) => {
   const [isListening, setIsListening] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -127,13 +128,14 @@ useEffect(() => {
     // Add the audio to the queue
     audioQueue.current.push(audio);
     
-    // Notify the chat interface about the text response
-    await onMessageSent(text);
+    
     
     // Play audio if not already playing
     if (!isPlaying.current) {
-      playNextInQueue();
+      await playNextInQueue();
     }
+    // Notify the chat interface to refresh messages
+    await refreshMessages(conversationId);
   };
 
   const playNextInQueue = async () => {
