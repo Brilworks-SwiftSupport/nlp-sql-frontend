@@ -199,11 +199,15 @@ const ChatInterface = () => {
   const removePair = (index) => {
     setPairs(pairs.filter((_, i) => i !== index));
   };
+  const currentConversationRef = useRef(null);
+useEffect(() => {
+  currentConversationRef.current = currentConversation;
+}, [currentConversation]);
 
   // Function to refresh messages - will be passed to VoiceMode
-  const refreshMessages = async (conversationId) => {
-    if (conversationId) {
-      await fetchMessages(conversationId);
+  const refreshMessages = async () => {
+    if (currentConversationRef) {
+      await fetchMessages(currentConversationRef.current.id);
     }
   };
 
