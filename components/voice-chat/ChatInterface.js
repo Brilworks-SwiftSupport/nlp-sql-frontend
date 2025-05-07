@@ -19,12 +19,35 @@ const ChatInterface = () => {
   const messagesEndRef = useRef(null);
   const messageContainerRef = useRef(null);
 
-  const startNewConversation = () => {
-    setCurrentConversation(null);
-    setMessages([]);
-    setNewMessage('');
-    if (window.innerWidth < 768) {
-      setIsSidebarOpen(false);
+  const startNewConversation = async () => {
+    try {
+      // Create a title with current date and time
+      const now = new Date();
+      const formattedDate = now.toLocaleDateString();
+      const formattedTime = now.toLocaleTimeString();
+      const title = `Chat_${formattedDate}_${formattedTime}`;
+      
+      const response = await axios.post('/conversations', {
+        title: title,
+        connection_id: selectedConnectionId
+      });
+      
+      if (response.data.status === 'success') {
+        const newConversation = response.data.conversation;
+        setCurrentConversation(newConversation);
+        setMessages([]);
+        setNewMessage('');
+        
+        // Update the conversations list
+        await fetchConversations();
+        
+        // Close sidebar on mobile
+        if (window.innerWidth < 768) {
+          setIsSidebarOpen(false);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to create new conversation:', error);
     }
   };
 
@@ -43,17 +66,33 @@ const ChatInterface = () => {
       const response = await axios.get('/conversations');
       if (response.data.status === 'success') {
         setConversations(response.data.conversations);
+        
+        // Automatically select the first conversation if available and none is currently selected
+        if (response.data.conversations.length > 0 && !currentConversation) {
+          const firstConversation = response.data.conversations[0];
+          setCurrentConversation(firstConversation);
+          
+          // Fetch messages for the selected conversation
+          await fetchMessages(firstConversation.id);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch conversations:', error);
     }
   };
 
+  // Fetch messages for a conversation and update selected connection
   const fetchMessages = async (conversationId) => {
     try {
       const response = await axios.get(`/conversations/${conversationId}/messages`);
       if (response.data.status === 'success') {
         setMessages(response.data.messages);
+        
+        // Find the current conversation to get its connection_id
+        if (currentConversation && currentConversation.connection_id) {
+          // Update the selected connection ID
+          setSelectedConnectionId(currentConversation.connection_id);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch messages:', error);
@@ -159,6 +198,17 @@ const ChatInterface = () => {
 
   const removePair = (index) => {
     setPairs(pairs.filter((_, i) => i !== index));
+  };
+  const currentConversationRef = useRef(null);
+useEffect(() => {
+  currentConversationRef.current = currentConversation;
+}, [currentConversation]);
+
+  // Function to refresh messages - will be passed to VoiceMode
+  const refreshMessages = async () => {
+    if (currentConversationRef) {
+      await fetchMessages(currentConversationRef.current.id);
+    }
   };
 
   return (
@@ -353,6 +403,10 @@ const ChatInterface = () => {
               onClick={() => {
                 setCurrentConversation(conversation);
                 fetchMessages(conversation.id);
+                // Set the selected connection ID based on the conversation
+                if (conversation.connection_id) {
+                  setSelectedConnectionId(conversation.connection_id);
+                }
                 if (window.innerWidth < 768) {
                   setIsSidebarOpen(false);
                 }
@@ -373,6 +427,7 @@ const ChatInterface = () => {
         conversationId={currentConversation?.id}
         selectedConnectionId={selectedConnectionId}
         pairs={pairs}
+        refreshMessages={refreshMessages}
       />
     </div>
   );
