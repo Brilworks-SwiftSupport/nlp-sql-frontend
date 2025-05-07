@@ -407,7 +407,42 @@ const DashboardView = () => {
     try {
       setIsExecuting(true);
       const response = await queryAPI.executeQuery(connectionId, query);
-      setQueryResult(response);
+      
+      // Ensure the response includes chartPreferences
+      if (response.status === 'success') {
+        // Initialize chart preferences if not present
+        if (!response.chartPreferences) {
+          const data = response.result;
+          if (data && data.length > 0) {
+            const firstRow = data[0];
+            const keys = Object.keys(firstRow);
+            
+            // Try to find numeric and non-numeric fields
+            const numericFields = keys.filter(key => 
+              !isNaN(parseFloat(firstRow[key])) && key !== 'id'
+            );
+            
+            const nonNumericFields = keys.filter(key => 
+              isNaN(parseFloat(firstRow[key])) || key === 'id'
+            );
+            
+            // Set default chart preferences
+            response.chartPreferences = {
+              chartType: 'bar',
+              xAxisField: nonNumericFields.length > 0 ? nonNumericFields[0] : keys[0],
+              yAxisField: numericFields.length > 0 ? numericFields[0] : (keys.length > 1 ? keys[1] : keys[0]),
+              colors: {
+                0: {
+                  backgroundColor: 'hsla(210, 70%, 50%, 0.6)',
+                  borderColor: 'hsla(210, 70%, 50%, 1)'
+                }
+              },
+              showLegend: false
+            };
+          }
+        }
+      }
+      
       return response;
     } catch (error) {
       console.error('Error executing query:', error);
@@ -419,17 +454,18 @@ const DashboardView = () => {
 
   const handleSendMessage = async () => {
     if (!currentMessage.trim() || isExecuting) return;
-
+    
+    // Add user message to chat
     const userMessage = {
       type: 'user',
       content: currentMessage,
       timestamp: new Date().toISOString()
     };
-
+    
     setMessages(prev => [...prev, userMessage]);
     setCurrentMessage('');
     setIsExecuting(true);
-
+    
     try {
       const response = await handleQueryExecution(userMessage.content);
       
@@ -445,7 +481,14 @@ const DashboardView = () => {
         queryResult: response.status === 'success' ? {
           result: response.result,
           sql_query: response.sql_query,
-          natural_language_query: userMessage.content
+          natural_language_query: userMessage.content,
+          chartPreferences: {
+            chartType: response.chartPreferences?.chartType || 'bar',
+            xAxisField: response.chartPreferences?.xAxisField || '',
+            yAxisField: response.chartPreferences?.yAxisField || '',
+            colors: response.chartPreferences?.colors || {},
+            showLegend: response.chartPreferences?.showLegend || false
+          }
         } : null
       };
       
@@ -617,7 +660,7 @@ const DashboardView = () => {
     const xAxisField = widget.visualization_settings?.axisFields?.xAxis || '';
     const yAxisField = widget.visualization_settings?.axisFields?.yAxis || '';
     
-    // Extract colors from the API response
+    // Extract colors from the widget's visualization settings
     const colors = {};
     if (widget.visualization_settings?.chartData?.datasets) {
       widget.visualization_settings.chartData.datasets.forEach((dataset, index) => {
@@ -939,7 +982,7 @@ const DashboardView = () => {
                           initialYAxisField={message.queryResult.chartPreferences?.yAxisField}
                           initialColors={message.queryResult.chartPreferences?.colors}
                           // Disable auto-detection to use the API settings
-                          disableAutoDetection={true}
+                          disableAutoDetection={false}
                           // Show controls in the popup
                           hideControls={false}
                           // Add callback to capture chart preference changes
@@ -949,6 +992,19 @@ const DashboardView = () => {
                               ...prev,
                               chartPreferences: preferences
                             }));
+                            
+                            // Also update the message's queryResult to reflect changes
+                            setMessages(prev => prev.map((msg, idx) => 
+                              idx === index && msg.type === 'system' && msg.queryResult
+                                ? {
+                                    ...msg,
+                                    queryResult: {
+                                      ...msg.queryResult,
+                                      chartPreferences: preferences
+                                    }
+                                  }
+                                : msg
+                            ));
                           }}
                         />
                       </div>
