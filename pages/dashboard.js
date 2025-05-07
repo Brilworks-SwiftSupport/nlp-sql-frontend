@@ -31,12 +31,25 @@ export default function Dashboard() {
 
     let mounted = true;
 
-    const fetchDashboards = async () => {
+    const fetchDashboards = async (retryCount = 0) => {
       try {
         setIsLoading(true);
         setError(null);
         const response = await dashboardAPI.getAllDashboards();
+        
         if (mounted && response.status === 'success') {
+          // If we get an empty array but we know there should be dashboards,
+          // retry after a short delay (but only up to 2 times)
+          if (response.dashboards.length === 0 && retryCount < 2) {
+            console.log(`Received empty dashboards array, retrying (${retryCount + 1}/3)...`);
+            setTimeout(() => {
+              if (mounted) {
+                fetchDashboards(retryCount + 1);
+              }
+            }, 1000); // Wait 1 second before retrying
+            return;
+          }
+          
           setDashboards(response.dashboards);
         }
       } catch (err) {
@@ -51,13 +64,13 @@ export default function Dashboard() {
         }
       }
     };
-
+    
     fetchDashboards();
-
+    
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [router]);
 
   const filteredAndSortedDashboards = () => {
     let filtered = dashboards.filter(dashboard =>

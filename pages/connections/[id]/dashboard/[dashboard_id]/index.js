@@ -5,8 +5,9 @@ import Link from 'next/link';
 import Layout from '../../../../../components/layout/Layout';
 import Button from '../../../../../components/common/Button';
 import Alert from '../../../../../components/common/Alert';
-import { dashboardAPI, queryAPI } from '../../../../../lib/api';
 import { Bar, Line, Doughnut } from 'react-chartjs-2';
+import { dashboardAPI, queryAPI } from '../../../../../lib/api';
+import { showSuccess, showError } from '../../../../../lib/toast';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -86,6 +87,7 @@ const DashboardView = () => {
     } catch (err) {
       console.error('Error deleting widget:', err);
       setError('Failed to delete widget. Please try again.');
+      showError('Failed to delete widget. Please try again.');
     }
   };
 
@@ -99,11 +101,15 @@ const DashboardView = () => {
       
       // Create a map of the old layouts for comparison
       const oldLayoutMap = {};
-      Object.values(oldLayouts).forEach(layout => {
-        layout.forEach(item => {
-          oldLayoutMap[item.i] = item;
+      if (oldLayouts) {
+        Object.values(oldLayouts).forEach(layout => {
+          if (layout) {
+            layout.forEach(item => {
+              oldLayoutMap[item.i] = item;
+            });
+          }
         });
-      });
+      }
 
       // Find widgets whose position or size has changed
       const changedWidgets = currentLayout
@@ -145,31 +151,41 @@ const DashboardView = () => {
 
       if (response.status === 'success') {
         console.log('Layout updated successfully');
+        
         // Update the previous layouts reference
-        prevLayouts.current = { ...newLayouts };
+        prevLayouts.current = JSON.parse(JSON.stringify(newLayouts));
         
         // Update the dashboard state with new positions
-        const updatedDashboard = { ...dashboard };
-        updatedDashboard.widgets = updatedDashboard.widgets.map(widget => {
-          const changed = changedWidgets.find(w => w.widget_id === widget.id);
-          if (changed) {
-            return {
-              ...widget,
-              position: changed.position,
-              size: changed.size
-            };
-          }
-          return widget;
+        setDashboard(prev => {
+          if (!prev) return prev;
+          
+          const updatedWidgets = prev.widgets.map(widget => {
+            const changed = changedWidgets.find(w => w.widget_id === widget.id);
+            if (changed) {
+              return {
+                ...widget,
+                position: changed.position,
+                size: changed.size
+              };
+            }
+            return widget;
+          });
+          
+          return {
+            ...prev,
+            widgets: updatedWidgets
+          };
         });
-        setDashboard(updatedDashboard);
       } else {
         console.error('Failed to update layout:', response);
         setError('Failed to save layout changes');
+        showError('Failed to save layout changes');
       }
 
     } catch (err) {
       console.error('Error saving layout:', err);
       setError('Failed to save layout changes');
+      showError('Failed to save layout changes');
     } finally {
       setIsSaving(false);
     }
@@ -184,6 +200,7 @@ const DashboardView = () => {
         const response = await dashboardAPI.getDashboard(dashboardId);
         const dashboardData = response.dashboard.dashboard;
         setDashboard(dashboardData);
+        
         // Initialize layouts from widget positions and sizes
         const initialLayouts = {
           lg: dashboardData.widgets.map((widget) => ({
@@ -247,12 +264,21 @@ const DashboardView = () => {
             static: false
           }))
         };
+        
+        console.log('Initial layouts:', initialLayouts);
         setLayouts(initialLayouts);
-        prevLayouts.current = { ...initialLayouts };
-        isInitialLoad.current = false;
+        
+        // Store a deep copy of the initial layouts as the previous layouts reference
+        prevLayouts.current = JSON.parse(JSON.stringify(initialLayouts));
+        
+        // Mark initial load as complete after a short delay
+        setTimeout(() => {
+          isInitialLoad.current = false;
+        }, 500);
       } catch (err) {
         console.error('Error fetching dashboard:', err);
         setError(err.response?.data?.message || err.message || 'Failed to load dashboard');
+        showError(err.response?.data?.message || err.message || 'Failed to load dashboard');
       } finally {
         setIsLoading(false);
       }
@@ -291,6 +317,24 @@ const DashboardView = () => {
       return null;
     }
 
+    // Use the chart type from the API response
+    const chartType = widget.visualization_settings?.chartType || 'bar';
+    
+    // Use the axis fields from the API response
+    const xAxisField = widget.visualization_settings?.axisFields?.xAxis || '';
+    const yAxisField = widget.visualization_settings?.axisFields?.yAxis || '';
+    
+    // Extract colors from the API response if available
+    const colors = {};
+    if (chartData.datasets && chartData.datasets.length > 0) {
+      chartData.datasets.forEach((dataset, index) => {
+        colors[index] = {
+          backgroundColor: dataset.backgroundColor || `hsla(${index * 137.5 % 360}, 70%, 50%, 0.6)`,
+          borderColor: dataset.borderColor || `hsla(${index * 137.5 % 360}, 70%, 50%, 1)`
+        };
+      });
+    }
+
     return (
       <div className="h-full">
         <ResultGraph
@@ -299,6 +343,15 @@ const DashboardView = () => {
           sql={widget.sql_query}
           maxHeight="100%"
           className="h-full"
+          // Pass the visualization settings from the API
+          initialChartType={chartType}
+          initialXAxisField={xAxisField}
+          initialYAxisField={yAxisField}
+          initialColors={colors}
+          // Disable auto-detection of chart type and fields
+          disableAutoDetection={true}
+          // Hide controls in the main dashboard view
+          hideControls={true}
         />
       </div>
     );
@@ -311,8 +364,9 @@ const DashboardView = () => {
       return;
     }
     
-    // Save layout changes
-    saveLayout(layouts, prevLayouts.current);
+    // Don't save layout changes immediately on every change
+    // This will be handled by onDragStop and onResizeStop
+    setLayouts(layouts);
   };
 
   // Function to handle drag stop
@@ -324,6 +378,11 @@ const DashboardView = () => {
       xs: layout,
       xxs: layout
     };
+    
+    // Update layouts state
+    setLayouts(layouts);
+    
+    // Save layout changes to backend
     saveLayout(layouts, prevLayouts.current);
   };
 
@@ -336,6 +395,11 @@ const DashboardView = () => {
       xs: layout,
       xxs: layout
     };
+    
+    // Update layouts state
+    setLayouts(layouts);
+    
+    // Save layout changes to backend
     saveLayout(layouts, prevLayouts.current);
   };
 
@@ -343,7 +407,42 @@ const DashboardView = () => {
     try {
       setIsExecuting(true);
       const response = await queryAPI.executeQuery(connectionId, query);
-      setQueryResult(response);
+      
+      // Ensure the response includes chartPreferences
+      if (response.status === 'success') {
+        // Initialize chart preferences if not present
+        if (!response.chartPreferences) {
+          const data = response.result;
+          if (data && data.length > 0) {
+            const firstRow = data[0];
+            const keys = Object.keys(firstRow);
+            
+            // Try to find numeric and non-numeric fields
+            const numericFields = keys.filter(key => 
+              !isNaN(parseFloat(firstRow[key])) && key !== 'id'
+            );
+            
+            const nonNumericFields = keys.filter(key => 
+              isNaN(parseFloat(firstRow[key])) || key === 'id'
+            );
+            
+            // Set default chart preferences
+            response.chartPreferences = {
+              chartType: 'bar',
+              xAxisField: nonNumericFields.length > 0 ? nonNumericFields[0] : keys[0],
+              yAxisField: numericFields.length > 0 ? numericFields[0] : (keys.length > 1 ? keys[1] : keys[0]),
+              colors: {
+                0: {
+                  backgroundColor: 'hsla(210, 70%, 50%, 0.6)',
+                  borderColor: 'hsla(210, 70%, 50%, 1)'
+                }
+              },
+              showLegend: false
+            };
+          }
+        }
+      }
+      
       return response;
     } catch (error) {
       console.error('Error executing query:', error);
@@ -355,17 +454,18 @@ const DashboardView = () => {
 
   const handleSendMessage = async () => {
     if (!currentMessage.trim() || isExecuting) return;
-
+    
+    // Add user message to chat
     const userMessage = {
       type: 'user',
       content: currentMessage,
       timestamp: new Date().toISOString()
     };
-
+    
     setMessages(prev => [...prev, userMessage]);
     setCurrentMessage('');
     setIsExecuting(true);
-
+    
     try {
       const response = await handleQueryExecution(userMessage.content);
       
@@ -381,7 +481,14 @@ const DashboardView = () => {
         queryResult: response.status === 'success' ? {
           result: response.result,
           sql_query: response.sql_query,
-          natural_language_query: userMessage.content
+          natural_language_query: userMessage.content,
+          chartPreferences: {
+            chartType: response.chartPreferences?.chartType || 'bar',
+            xAxisField: response.chartPreferences?.xAxisField || '',
+            yAxisField: response.chartPreferences?.yAxisField || '',
+            colors: response.chartPreferences?.colors || {},
+            showLegend: response.chartPreferences?.showLegend || false
+          }
         } : null
       };
       
@@ -417,15 +524,66 @@ const DashboardView = () => {
         return;
       }
 
+      // Get chart preferences from the queryResult - these will include any user changes
+      const chartPreferences = queryResult.chartPreferences || {};
+      
+      // Use chart type from preferences or fall back to existing or default
+      const chartType = chartPreferences.chartType || 
+                        selectedWidget.visualization_settings?.chartType || 
+                        'bar';
+      
+      // Get axis fields from preferences or fall back to existing values
+      const xAxisField = chartPreferences.xAxisField || 
+                         selectedWidget.visualization_settings?.axisFields?.xAxis || 
+                         '';
+      const yAxisField = chartPreferences.yAxisField || 
+                         selectedWidget.visualization_settings?.axisFields?.yAxis || 
+                         '';
+      
+      // Get colors from preferences or fall back to existing values
+      const colors = chartPreferences.colors || {};
+      
+      // Create datasets with colors
+      const datasets = [];
+      if (queryResult.result && queryResult.result.length > 0) {
+        // For doughnut charts or single value metrics
+        if (chartType === 'doughnut' && queryResult.result.length === 1) {
+          const firstRow = queryResult.result[0];
+          const keys = Object.keys(firstRow);
+          
+          datasets.push({
+            data: keys.map(key => parseFloat(firstRow[key]) || 0),
+            backgroundColor: keys.map((_, i) => 
+              colors[i]?.backgroundColor || `hsla(${i * 137.5 % 360}, 70%, 50%, 0.6)`
+            ),
+            borderColor: keys.map((_, i) => 
+              colors[i]?.borderColor || `hsla(${i * 137.5 % 360}, 70%, 50%, 1)`
+            ),
+            borderWidth: 1
+          });
+        } 
+        // For bar and line charts
+        else {
+          datasets.push({
+            label: yAxisField.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim(),
+            data: queryResult.result.map(row => parseFloat(row[yAxisField]) || 0),
+            backgroundColor: colors[0]?.backgroundColor || 'hsla(210, 70%, 50%, 0.6)',
+            borderColor: colors[0]?.borderColor || 'hsla(210, 70%, 50%, 1)',
+            borderWidth: 1
+          });
+        }
+      }
+
       const chartData = {
-        type: 'bar', // or get from state if you have chart type selection
+        type: chartType,
         data: queryResult.result,
+        datasets: datasets,
         options: {
           responsive: true,
           maintainAspectRatio: false,
           plugins: {
             legend: {
-              display: false
+              display: chartPreferences.showLegend || false
             },
             title: {
               display: true,
@@ -447,8 +605,12 @@ const DashboardView = () => {
         natural_language_query: naturalLanguageQuery,
         sql_query: queryResult.sql_query,
         visualization_settings: {
-          chartType: 'bar', // or get from state if you have chart type selection
-          chartData: chartData
+          chartType: chartType,
+          chartData: chartData,
+          axisFields: {
+            xAxis: xAxisField,
+            yAxis: yAxisField
+          }
         },
         position: selectedWidget.position,
         size: selectedWidget.size,
@@ -461,22 +623,23 @@ const DashboardView = () => {
       const response = await dashboardAPI.updateWidget(selectedWidget.id, updateData);
       
       if (response.status === 'success') {
-        // Update the widget in the dashboard state
-        setDashboard(prev => ({
-          ...prev,
-          widgets: prev.widgets.map(w => 
-            w.id === selectedWidget.id ? response.widget : w
-          )
-        }));
+        // Show success message
+        showSuccess('Widget updated successfully');
         
         // Close the popup
         handleClosePopup();
+        
+        // Refresh the page to ensure all changes are reflected
+        setTimeout(() => {
+          window.location.reload();
+        }, 500); // Short delay to allow the success message to be seen
       } else {
         throw new Error(response.message || 'Failed to update widget');
       }
     } catch (err) {
       console.error('Error updating widget:', err);
       setError(err.message || 'Failed to update widget');
+      showError(err.message || 'Failed to update widget');
     }
   };
 
@@ -491,9 +654,34 @@ const DashboardView = () => {
   const handleEditWidget = (widget) => {
     setSelectedWidget(widget);
     setCurrentMessage(widget.natural_language_query || widget.name || '');
+    
+    // Extract visualization settings from the widget
+    const chartType = widget.visualization_settings?.chartType || 'bar';
+    const xAxisField = widget.visualization_settings?.axisFields?.xAxis || '';
+    const yAxisField = widget.visualization_settings?.axisFields?.yAxis || '';
+    
+    // Extract colors from the widget's visualization settings
+    const colors = {};
+    if (widget.visualization_settings?.chartData?.datasets) {
+      widget.visualization_settings.chartData.datasets.forEach((dataset, index) => {
+        colors[index] = {
+          backgroundColor: dataset.backgroundColor || `hsla(${index * 137.5 % 360}, 70%, 50%, 0.6)`,
+          borderColor: dataset.borderColor || `hsla(${index * 137.5 % 360}, 70%, 50%, 1)`
+        };
+      });
+    }
+    
+    // Set query result with all the visualization preferences
     setQueryResult({
-      result: widget.visualization_settings?.chartData?.data,
-      sql_query: widget.sql_query
+      result: widget.visualization_settings?.chartData?.data || [],
+      sql_query: widget.sql_query,
+      chartPreferences: {
+        chartType: chartType,
+        xAxisField: xAxisField,
+        yAxisField: yAxisField,
+        colors: colors,
+        showLegend: widget.visualization_settings?.chartData?.options?.plugins?.legend?.display || false
+      }
     });
     
     // Initialize messages with the current widget data
@@ -508,9 +696,16 @@ const DashboardView = () => {
         content: 'Current widget visualization:',
         timestamp: new Date().toISOString(),
         queryResult: {
-          result: widget.visualization_settings?.chartData?.data,
+          result: widget.visualization_settings?.chartData?.data || [],
           sql_query: widget.sql_query,
-          natural_language_query: widget.natural_language_query || widget.name
+          natural_language_query: widget.natural_language_query || widget.name,
+          chartPreferences: {
+            chartType: chartType,
+            xAxisField: xAxisField,
+            yAxisField: yAxisField,
+            colors: colors,
+            showLegend: widget.visualization_settings?.chartData?.options?.plugins?.legend?.display || false
+          }
         }
       }
     ]);
@@ -781,6 +976,36 @@ const DashboardView = () => {
                           data={message.queryResult.result}
                           sql={message.queryResult.sql_query}
                           maxHeight="100%"
+                          // Pass the visualization settings from the API
+                          initialChartType={message.queryResult.chartPreferences?.chartType}
+                          initialXAxisField={message.queryResult.chartPreferences?.xAxisField}
+                          initialYAxisField={message.queryResult.chartPreferences?.yAxisField}
+                          initialColors={message.queryResult.chartPreferences?.colors}
+                          // Disable auto-detection to use the API settings
+                          disableAutoDetection={false}
+                          // Show controls in the popup
+                          hideControls={false}
+                          // Add callback to capture chart preference changes
+                          onChartPreferencesChange={(preferences) => {
+                            // Update the queryResult with the new preferences
+                            setQueryResult(prev => ({
+                              ...prev,
+                              chartPreferences: preferences
+                            }));
+                            
+                            // Also update the message's queryResult to reflect changes
+                            setMessages(prev => prev.map((msg, idx) => 
+                              idx === index && msg.type === 'system' && msg.queryResult
+                                ? {
+                                    ...msg,
+                                    queryResult: {
+                                      ...msg.queryResult,
+                                      chartPreferences: preferences
+                                    }
+                                  }
+                                : msg
+                            ));
+                          }}
                         />
                       </div>
                     )}
