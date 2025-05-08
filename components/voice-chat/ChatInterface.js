@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import axios from '../../lib/api';
 import { connectionAPI } from '../../lib/api';
 import VoiceMode from './VoiceMode';
+import { showSuccess, showError } from '../../lib/toast';
 
 const ChatInterface = () => {
   const [conversations, setConversations] = useState([]);
@@ -45,9 +46,12 @@ const ChatInterface = () => {
         if (window.innerWidth < 768) {
           setIsSidebarOpen(false);
         }
+        
+        showSuccess('New conversation created successfully');
       }
     } catch (error) {
       console.error('Failed to create new conversation:', error);
+      showError('Failed to create new conversation');
     }
   };
 
@@ -99,6 +103,33 @@ const ChatInterface = () => {
     }
   };
 
+  // Function to handle PDF download
+  const handlePdfDownload = (base64Data, filename) => {
+    try {
+      // Convert base64 to blob
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'application/pdf' });
+      
+      // Create download link
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename || 'document.pdf';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      showSuccess('PDF downloaded successfully');
+    } catch (error) {
+      console.error('Failed to download PDF:', error);
+      showError('Failed to download PDF');
+    }
+  };
+
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
@@ -127,6 +158,7 @@ const ChatInterface = () => {
           if (messageResponse.data.status === 'success') {
             setMessages(messageResponse.data.messages);
             await fetchConversations(); // Refresh conversation list
+            showSuccess('Message sent successfully');
           }
         }
       } else {
@@ -140,11 +172,13 @@ const ChatInterface = () => {
         if (response.data.status === 'success') {
           // Append the new messages to existing messages
           setMessages(prevMessages => [...prevMessages, ...response.data.messages]);
+          showSuccess('Message sent successfully');
         }
       }
       setNewMessage('');
     } catch (error) {
       console.error('Failed to send message:', error);
+      showError('Failed to send message');
     } finally {
       setIsLoading(false);
     }
@@ -324,6 +358,26 @@ useEffect(() => {
                   }`}
                 >
                   {message.content}
+                  
+                  {/* PDF Download Section */}
+                  {message.pdf_data && message.pdf_filename && (
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">
+                          {message.pdf_filename}
+                        </span>
+                        <button
+                          onClick={() => handlePdfDownload(message.pdf_data, message.pdf_filename)}
+                          className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium"
+                        >
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                          Download PDF
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
