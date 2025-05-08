@@ -76,6 +76,11 @@ const ChatInterface = () => {
           const firstConversation = response.data.conversations[0];
           setCurrentConversation(firstConversation);
           
+          // Set the connection ID from the first conversation
+          if (firstConversation.connection_id) {
+            setSelectedConnectionId(firstConversation.connection_id);
+          }
+          
           // Fetch messages for the selected conversation
           await fetchMessages(firstConversation.id);
         }
@@ -92,10 +97,14 @@ const ChatInterface = () => {
       if (response.data.status === 'success') {
         setMessages(response.data.messages);
         
-        // Find the current conversation to get its connection_id
-        if (currentConversation && currentConversation.connection_id) {
+        // Find the conversation to get its connection_id
+        const conversation = conversations.find(conv => conv.id === conversationId);
+        if (conversation && conversation.connection_id) {
           // Update the selected connection ID
-          setSelectedConnectionId(currentConversation.connection_id);
+          setSelectedConnectionId(conversation.connection_id);
+        } else if (response.data.conversation && response.data.conversation.connection_id) {
+          // If conversation details are included in the response, use that
+          setSelectedConnectionId(response.data.conversation.connection_id);
         }
       }
     } catch (error) {
@@ -128,6 +137,42 @@ const ChatInterface = () => {
       console.error('Failed to download PDF:', error);
       showError('Failed to download PDF');
     }
+  };
+
+  // Function to apply markdown formatting to text
+  const applyMarkdown = (text) => {
+    if (!text) return '';
+    
+    // Format numbered lists (e.g., 1. Item)
+    text = text.replace(/^(\d+)\.\s(.+)$/gm, '<ol start="$1"><li>$2</li></ol>');
+    
+    // Format bullet points
+    text = text.replace(/^\*\s(.+)$/gm, '<ul><li>$1</li></ul>');
+    
+    // Format headers (e.g., # Header)
+    text = text.replace(/^#\s(.+)$/gm, '<h1>$1</h1>');
+    text = text.replace(/^##\s(.+)$/gm, '<h2>$1</h2>');
+    text = text.replace(/^###\s(.+)$/gm, '<h3>$1</h3>');
+    
+    // Format bold text
+    text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    
+    // Format italic text
+    text = text.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    
+    // Format code blocks
+    text = text.replace(/```(.+?)```/gs, '<pre><code>$1</code></pre>');
+    
+    // Format inline code
+    text = text.replace(/`(.+?)`/g, '<code>$1</code>');
+    
+    // Format links
+    text = text.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank">$1</a>');
+    
+    // Replace newlines with <br> tags
+    text = text.replace(/\n/g, '<br>');
+    
+    return text;
   };
 
   const handleSendMessage = async (e) => {
@@ -195,13 +240,19 @@ const ChatInterface = () => {
         const response = await connectionAPI.getConnections();
         if (response.status === 'success') {
           setConnections(response.connections);
+          
+          // If we have connections but no selected connection yet,
+          // and we have a current conversation with a connection_id, set it
+          if (response.connections.length > 0 && !selectedConnectionId && currentConversation?.connection_id) {
+            setSelectedConnectionId(currentConversation.connection_id);
+          }
         }
       } catch (error) {
         console.error('Failed to fetch connections:', error);
       }
     };
     fetchConnections();
-  }, []);
+  }, [currentConversation]);
 
   // Fetch schema when connection changes
   useEffect(() => {
@@ -357,7 +408,7 @@ useEffect(() => {
                       : 'bg-white text-gray-800'
                   }`}
                 >
-                  {message.content}
+                  <div dangerouslySetInnerHTML={{ __html: applyMarkdown(message.content) }} />
                   
                   {/* PDF Download Section */}
                   {message.pdf_data && message.pdf_filename && (
