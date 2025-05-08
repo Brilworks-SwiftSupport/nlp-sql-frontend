@@ -14,6 +14,8 @@ import Alert from '../../../components/common/Alert';
 import { connectionAPI, queryAPI, dashboardAPI } from '../../../lib/api';
 import { withAuth } from '../../../lib/auth';
 import Select from '../../../components/common/Select';
+import { showSuccess, showError  } from '../../../lib/toast';
+
 
 const QueryPage = () => {
   const router = useRouter();
@@ -34,7 +36,39 @@ const QueryPage = () => {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [dashboards, setDashboards] = useState([]);
   const [selectedDashboard, setSelectedDashboard] = useState(null);
+  const [showScriptModal, setShowScriptModal] = useState(false);
+  const [generatedScript, setGeneratedScript] = useState('');
+  const [pairs, setPairs] = useState([]); // Add pairs state
+  const generateChatbotScript = () => {
+    // Get the base URL of the application
+    const baseUrl = window.location.origin;
+    
+    // Create a more professional script that follows standard practices
+    const scriptCode = `
+<!-- NLP SQL Bot Chatbot Widget -->
+<script>
+  window.nlpSqlBotConfig = {
+    connectionId: '${id}',
+    baseUrl: '${baseUrl}', // Explicitly set the base URL
+    embedded: true,
+    fullPage: true, // Set to true for full page mode, false for widget mode
+    params: ${JSON.stringify(
+      pairs && Array.isArray(pairs) 
+        ? pairs.filter(pair => pair.table && pair.column && pair.value)
+        : []
+    )}
+  };
+</script>
+<script
+  defer
+  id="nlpsql-chatbot-widget-script"
+  src="${baseUrl}/chatbot-widget.js">
+</script>
+  `;
   
+    setGeneratedScript(scriptCode);
+    setShowScriptModal(true);
+  };
   // Get connection and check if schema exists
   useEffect(() => {
     if (!id) return;
@@ -70,10 +104,11 @@ const QueryPage = () => {
         } catch (err) {
           // Not critical, we can still continue without recent queries
           console.error("Failed to fetch query history:", err);
+          showError("Failed to fetch query history");
         }
         
       } catch (err) {
-        setError(err.response?.data?.message || 'An error occurred while loading the query page');
+        showError(err.response?.data?.message || 'An error occurred while loading the query page');
       } finally {
         setIsLoading(false);
       }
@@ -94,6 +129,7 @@ const QueryPage = () => {
         router.replace(pathname, undefined, { shallow: true });
       } catch (err) {
         console.error("Failed to parse query result from URL:", err);
+        showError("Failed to load query result");
       }
     }
   }, [router.query.result, router]);
@@ -358,6 +394,17 @@ const QueryPage = () => {
                   Back to Connection
                 </Button>
               </Link>
+
+              <button
+              type="button"
+              onClick={generateChatbotScript}
+              className="ml-2 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+              </svg>
+              Generate Chatbot Script
+            </button>
               
               {hasStoredSchema && !showSchemaSelector && (
                 <Button
@@ -516,6 +563,55 @@ const QueryPage = () => {
           
         
         </div>
+
+        {showScriptModal && (
+  <div className="fixed z-10 inset-0 overflow-y-auto">
+    <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+      <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+        <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+      </div>
+      <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+      <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full sm:p-6">
+        <div>
+          <div className="mt-3 text-center sm:mt-5">
+            <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">
+              Chatbot Embed Script
+            </h3>
+            <div className="mt-2">
+              <p className="text-sm text-gray-500 mb-4">
+                Copy and paste this script into any website to embed the AI Assistant chatbot with your current query parameters.
+              </p>
+              <div className="bg-gray-50 p-4 rounded-md">
+                <pre className="text-left text-xs overflow-x-auto whitespace-pre-wrap">
+                  {generatedScript}
+                </pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
+          <button
+            type="button"
+            className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:col-start-2 sm:text-sm"
+            onClick={() => {
+              navigator.clipboard.writeText(generatedScript);
+              showSuccess('Script copied to clipboard');
+            }}
+          >
+            Copy to Clipboard
+          </button>
+          <button
+            type="button"
+            className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:col-start-1 sm:text-sm"
+            onClick={() => setShowScriptModal(false)}
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
       </div>
     </Layout>
   );
