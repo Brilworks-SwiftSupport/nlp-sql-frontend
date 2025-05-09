@@ -43,7 +43,7 @@ textarea {
 }
 
 .animate-fadeIn {
-  animation: fadeIn 0.3s ease-out forwards;
+  animation: fadeIn 0.3s ease-in-out forwards;
 }
 
 @keyframes pulse {
@@ -64,7 +64,27 @@ textarea {
   animation: bounce 1s infinite;
 }
 
-/* Scrollbar styling for the chat interface */
+/* Add these custom styles for the futuristic AI assistant */
+.shadow-glow {
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+}
+
+.shadow-glow-blue {
+  box-shadow: 0 0 20px rgba(37, 99, 235, 0.2);
+}
+
+.shadow-glow-dark {
+  box-shadow: 0 0 20px rgba(17, 24, 39, 0.4);
+}
+
+.bg-grid-pattern {
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Scrollbar styling for the chat container */
 .overflow-y-auto::-webkit-scrollbar {
   width: 6px;
 }
@@ -74,10 +94,10 @@ textarea {
 }
 
 .overflow-y-auto::-webkit-scrollbar-thumb {
-  background: rgba(79, 70, 229, 0.5);
+  background: rgba(59, 130, 246, 0.5);
   border-radius: 3px;
 }
 
 .overflow-y-auto::-webkit-scrollbar-thumb:hover {
-  background: rgba(99, 102, 241, 0.7);
+  background: rgba(59, 130, 246, 0.7);
 }
