@@ -38,10 +38,27 @@ const QueryPage = () => {
   const [selectedDashboard, setSelectedDashboard] = useState(null);
   const [showScriptModal, setShowScriptModal] = useState(false);
   const [generatedScript, setGeneratedScript] = useState('');
-  const [pairs, setPairs] = useState([]); // Add pairs state
+  const [pairs, setPairs] = useState([{ table: '', column: '', value: '' }]); // Initialize with one empty pair
+  const handlePairsUpdate = (newPairs) => {
+    console.log('QueryPage received updated pairs:', newPairs);
+    setPairs(newPairs);
+  };
   const generateChatbotScript = () => {
     // Get the base URL of the application
     const baseUrl = window.location.origin;
+    
+    // Process pairs to ensure they're in the correct format
+    const processedParams = pairs && Array.isArray(pairs) 
+      ? pairs.filter(pair => pair.table && pair.column)
+            .map(pair => ({
+              table: pair.table,
+              column: pair.column,
+              value: pair.value || null,
+              promptForValue: pair.value ? false : true
+            }))
+      : [];
+    
+    console.log('Generating script with parameters:', processedParams);
     
     // Create a more professional script that follows standard practices
     const scriptCode = `
@@ -52,20 +69,16 @@ const QueryPage = () => {
     baseUrl: '${baseUrl}', // Explicitly set the base URL
     embedded: true,
     fullPage: true, // Set to true for full page mode, false for widget mode
-    params: ${JSON.stringify(
-      pairs && Array.isArray(pairs) 
-        ? pairs.filter(pair => pair.table && pair.column && pair.value)
-        : []
-    )}
+    params: ${JSON.stringify(processedParams)}
   };
 </script>
 <script
   defer
   id="nlpsql-chatbot-widget-script"
-  src="${baseUrl}/chatbot-widget.js">
+  src="${baseUrl}/api/chatbot-widget">
 </script>
   `;
-  
+    
     setGeneratedScript(scriptCode);
     setShowScriptModal(true);
   };
@@ -234,9 +247,11 @@ const QueryPage = () => {
     try {
       if (!selectedDashboard) {
         setError('Please select a dashboard first');
+        console.error('No dashboard selected');
         return;
       }
 
+      console.log('Adding widget to dashboard:', selectedDashboard);
       setError(null);
       
       // Get chart preferences from the result
@@ -339,6 +354,7 @@ const QueryPage = () => {
         refresh_interval: 0
       };
 
+      console.log('Widget data being sent:', widgetData);
       const response = await dashboardAPI.addWidget(widgetData);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -352,8 +368,22 @@ const QueryPage = () => {
   useEffect(() => {
     const fetchDashboards = async () => {
       try {
-        const response = await dashboardAPI.getDashboardsByCollection(id); // Assuming this endpoint exists
-        setDashboards(response.dashboards);
+        if (!id) return; // Make sure connection ID is available
+        
+        console.log('Fetching dashboards for connection:', id);
+        const response = await dashboardAPI.getDashboardsByCollection(id);
+        
+        if (response.status === 'success' && response.dashboards) {
+          console.log('Loaded dashboards:', response.dashboards);
+          setDashboards(response.dashboards);
+          
+          // If there are dashboards, select the first one by default
+          if (response.dashboards.length > 0) {
+            setSelectedDashboard(response.dashboards[0].id);
+          }
+        } else {
+          console.error('Failed to load dashboards:', response);
+        }
       } catch (err) {
         console.error('Error fetching dashboards:', err);
       }
@@ -435,6 +465,9 @@ const QueryPage = () => {
                 connectionId={id}
                 onQueryResult={handleQueryExecution}
                 recentQueries={recentQueries}
+                onPairsChange={handlePairsUpdate}
+                pairs={pairs}
+                initialQuery={router.query.query || ''}
               />
             </div>
           )}
