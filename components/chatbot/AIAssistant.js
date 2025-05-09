@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from '../../lib/api';
 import { connectionAPI } from '../../lib/api';
-import VoiceMode from './VoiceMode';
+import VoiceMode from '../voice-chat/VoiceMode';
 import { showSuccess, showError } from '../../lib/toast';
 
 const ChatInterface = () => {
