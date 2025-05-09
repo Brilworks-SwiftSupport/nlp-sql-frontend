@@ -5,6 +5,7 @@ import axios from 'axios';
 import { toast } from 'react-toastify';
 
 const API_URL = "https://sqlchatapi.swiftsupport.ai/nlpsql";
+// const API_URL = "http://127.0.0.1:5000/nlpsql";
 
 const PublicAIAssistant = () => {
   const router = useRouter();
@@ -654,8 +655,8 @@ const PublicAIAssistant = () => {
                   <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
                 </svg>
               </div>
-              AI Data Assistant
-              <span className="ml-2 text-xs bg-blue-600 px-2 py-1 rounded-full text-blue-100">v2.0</span>
+              AI Banking Assistant
+              <span className="ml-2 text-xs bg-blue-600 px-2 py-1 rounded-full text-blue-100">v1.0</span>
             </h1>
           </div>
           
