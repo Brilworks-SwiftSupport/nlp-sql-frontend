@@ -15,6 +15,8 @@ const QueryForm = ({
   recentQueries = [],
   showRecentQueries = true,
   onQuerySelect = null,
+  onPairsChange = null,
+  pairs = [{ table: '', column: '', value: '' }], // Add default value for pairs
 }) => {
   const [query, setQuery] = useState(initialQuery);
   const [isLoading, setIsLoading] = useState(false);
@@ -24,7 +26,16 @@ const QueryForm = ({
   const [isLoadingSchema, setIsLoadingSchema] = useState(false);
   const [schemaError, setSchemaError] = useState(null);
   const [validationErrors, setValidationErrors] = useState({});
-  const [pairs, setPairs] = useState([{ table: '', column: '', value: '' }]);
+  // Don't initialize pairs here if we're accepting them as a prop
+  // const [pairs, setPairs] = useState([{ table: '', column: '', value: '' }]);
+  
+  // Instead, use the pairs prop directly or use local state that's initialized from the prop
+  const [localPairs, setLocalPairs] = useState(pairs);
+  
+  // Update local pairs when the prop changes
+  useEffect(() => {
+    setLocalPairs(pairs);
+  }, [pairs]);
 
   const handleChange = (e) => {
     const textarea = e.target;
@@ -102,31 +113,46 @@ const QueryForm = ({
     }
   }, [connectionId]);
 
-  const addPair = () => {
-    setPairs([...pairs, { table: '', column: '', value: '' }]);
+  const handleAddPair = () => {
+    const newPairs = [...localPairs, { table: '', column: '', value: '' }];
+    setLocalPairs(newPairs);
+    if (onPairsChange) {
+      onPairsChange(newPairs);
+    }
   };
 
-  const removePair = (index) => {
-    const newPairs = [...pairs];
-    newPairs.splice(index, 1);
-    setPairs(newPairs);
+  const handleRemovePair = (index) => {
+    const newPairs = localPairs.filter((_, i) => i !== index);
+    setLocalPairs(newPairs);
+    if (onPairsChange) {
+      onPairsChange(newPairs);
+    }
+  };
+
+  const handlePairChange = (index, field, value) => {
+    const newPairs = [...localPairs];
+    newPairs[index][field] = value;
+    setLocalPairs(newPairs);
+    if (onPairsChange) {
+      onPairsChange(newPairs);
+    }
   };
 
   const handleTableChange = async (index, tableName) => {
-    const newPairs = [...pairs];
+    const newPairs = [...localPairs];
     newPairs[index].table = tableName;
-    setPairs(newPairs);
+    setLocalPairs(newPairs);
     // await fetchColumns(tableName);
   };
 
   const handleColumnChange = (index, columnName) => {
-    const newPairs = [...pairs];
+    const newPairs = [...localPairs];
     newPairs[index].column = columnName;
-    setPairs(newPairs);
+    setLocalPairs(newPairs);
   };
 
   const handleValueChange = (index, value) => {
-    const newPairs = [...pairs];
+    const newPairs = [...localPairs];
     const pair = newPairs[index];
     
     // Get column type and nullable info
@@ -149,7 +175,7 @@ const QueryForm = ({
     setValidationErrors(newErrors);
     
     pair.value = value;
-    setPairs(newPairs);
+    setLocalPairs(newPairs);
   };
 
   const handleSubmit = async (e) => {
@@ -161,7 +187,7 @@ const QueryForm = ({
     }
 
     // Filter out pairs with empty table or column
-    const validPairs = pairs.filter(pair => pair.table && pair.column).map(pair => ({
+    const validPairs = localPairs.filter(pair => pair.table && pair.column).map(pair => ({
       table: pair.table,
       column: pair.column,
       value: pair.value
@@ -209,7 +235,7 @@ const QueryForm = ({
           <div className="mb-4 text-sm text-red-500">{schemaError}</div>
         )}
 
-        {pairs.map((pair, index) => (
+        {localPairs.map((pair, index) => (
           <div key={index} className="border rounded-lg p-4 mb-4">
             <div className="grid grid-cols-3 gap-4">
               <div>
@@ -277,7 +303,7 @@ const QueryForm = ({
             {index > 0 && (
               <button
                 type="button"
-                onClick={() => removePair(index)}
+                onClick={() => handleRemovePair(index)}
                 className="mt-2 text-sm text-red-500 hover:text-red-700"
               >
                 Remove Pair
@@ -288,7 +314,7 @@ const QueryForm = ({
 
         <button
           type="button"
-          onClick={addPair}
+          onClick={handleAddPair}
           className="text-sm text-blue-500 hover:text-blue-700"
         >
           Add New Pair
