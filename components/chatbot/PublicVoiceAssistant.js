@@ -109,7 +109,7 @@ const PublicVoiceAssistant = ({
         return sum + norm * norm;
       }, 0) / dataArrayRef.current.length
     );
-    const threshold = 0.075;
+    const threshold = 0.15;
     const now = Date.now();
     const isSilent = rms < threshold;
 
