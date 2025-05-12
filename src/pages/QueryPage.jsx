@@ -27,6 +27,7 @@ import axios from 'axios';
 import { getAuthToken } from '../utils/auth';
 import ConnectionSelector from '../components/ConnectionSelector';
 import QueryBuilder from '../components/QueryBuilder';
+import { showSuccess, showError } from '../../lib/toast';
 
 // TabPanel component for the tab content
 function TabPanel(props) {
@@ -125,12 +126,14 @@ const QueryPage = () => {
           error: '',
           loading: false
         });
+        showSuccess('Query executed successfully');
       } else {
         setResults({
           ...results,
           error: response.data.message || 'Failed to process query',
           loading: false
         });
+        showError(response.data.message || 'Failed to process query');
       }
     } catch (error) {
       setResults({
@@ -138,6 +141,7 @@ const QueryPage = () => {
         error: error.response?.data?.message || 'An error occurred',
         loading: false
       });
+      showError(error.response?.data?.message || 'An error occurred');
     }
   };
 

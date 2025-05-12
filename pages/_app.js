@@ -2,6 +2,8 @@
 import { useEffect } from 'react';
 import Head from 'next/head';
 import '../styles/globals.css';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 function MyApp({ Component, pageProps }) {
   // Remove the server-side injected CSS on first client render
@@ -19,6 +21,7 @@ function MyApp({ Component, pageProps }) {
         <title>NLP SQL Bot</title>
       </Head>
       <Component {...pageProps} />
+      <ToastContainer position="top-right" autoClose={3000} />
     </>
   );
 }
