@@ -106,7 +106,7 @@ const VoiceMode = ({
         return sum + norm * norm;
       }, 0) / dataArrayRef.current.length
     );
-    const threshold = 0.225;
+    const threshold = 0.2;
     const now = Date.now();
     const isSilent = rms < threshold;
 
