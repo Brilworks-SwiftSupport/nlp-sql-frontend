@@ -177,9 +177,10 @@ const QueryPage = () => {
       const response = await queryAPI.saveQueryExample({
         connection_id: id,
         natural_language_query: queryResult.natural_language_query,
-        sql_query: queryResult.sql_query
+        sql_query: queryResult.sql_query,
+        params: queryResult.params
       });
-      
+
       if (response.status === 'success') {
         setSaveSuccess(true);
         // Reset success message after 3 seconds
