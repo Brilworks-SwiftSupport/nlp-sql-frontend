@@ -3,9 +3,10 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 import { toast } from 'react-toastify';
+import PublicVoiceAssistant from './PublicVoiceAssistant';
 
-const API_URL = "https://sqlchatapi.swiftsupport.ai/nlpsql";
-// const API_URL = "http://127.0.0.1:5000/nlpsql";
+// const API_URL = "https://sqlchatapi.swiftsupport.ai/nlpsql";
+const API_URL = "http://127.0.0.1:5000/nlpsql";
 
 const PublicAIAssistant = () => {
   const router = useRouter();
@@ -20,6 +21,7 @@ const PublicAIAssistant = () => {
   const [isConversationListOpen, setIsConversationListOpen] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const [isVoiceModeOpen, setIsVoiceModeOpen] = useState(false);
 
   const showSuccess = (message) => {
     // Check if toast is available
@@ -628,6 +630,20 @@ const PublicAIAssistant = () => {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   };
+
+  const handleVoiceMessage = async (text) => {
+    await handleSendMessage({ preventDefault: () => {} }, text);
+  };
+
+  const currentConversationRef = useRef(null);
+  useEffect(() => {
+    currentConversationRef.current = currentConversation;
+  }, [currentConversation]);
+  const refreshMessages = async () => {
+    if (currentConversationRef) {
+      await fetchMessagesFromAPI(currentConversationRef.current.id);
+    }
+  };
   
   return (
     <div className="flex flex-col h-full bg-gradient-to-b from-gray-900 to-gray-800 text-white">
@@ -867,8 +883,26 @@ const PublicAIAssistant = () => {
               </>
             )}
           </button>
+          <button
+              type="button"
+              onClick={() => setIsVoiceModeOpen(true)}
+              className="bg-gray-100 text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-200"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+              </svg>
+            </button>
         </form>
       </div>
+      <PublicVoiceAssistant
+              isOpen={isVoiceModeOpen}
+              onClose={() => setIsVoiceModeOpen(false)}
+              onMessageSent={handleVoiceMessage}
+              conversationId={currentConversation?.id}
+              selectedConnectionId={id}
+              pairs={parameters}
+              refreshMessages={refreshMessages}
+            />
     </div>
   );
 };
