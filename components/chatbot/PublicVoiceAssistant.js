@@ -37,7 +37,7 @@ const PublicVoiceAssistant = ({
   const [waveformData, setWaveformData] = useState(new Uint8Array(0));
 
   useEffect(() => {
-    socketRef.current = io(process.env.SOCKET_API_URL || 'http://127.0.0.1:5000', {
+    socketRef.current = io(process.env.SOCKET_API_URL || 'https://sqlchatapi.swiftsupport.ai', {
       path: '/socket.io', transports: ['websocket'],
     });
 
