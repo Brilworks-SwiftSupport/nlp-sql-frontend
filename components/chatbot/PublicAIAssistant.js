@@ -5,8 +5,8 @@ import axios from 'axios';
 import { toast } from 'react-toastify';
 import PublicVoiceAssistant from './PublicVoiceAssistant';
 
-// const API_URL = "https://sqlchatapi.swiftsupport.ai/nlpsql";
-const API_URL = "http://127.0.0.1:5000/nlpsql";
+const API_URL = "https://sqlchatapi.swiftsupport.ai/nlpsql";
+// const API_URL = "http://127.0.0.1:5000/nlpsql";
 
 const PublicAIAssistant = () => {
   const router = useRouter();
