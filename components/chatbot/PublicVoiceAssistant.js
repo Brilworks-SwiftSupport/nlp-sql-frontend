@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { io } from 'socket.io-client';
 import axios from '../../lib/api';
 
-const VoiceMode = ({ 
+const PublicVoiceAssistant = ({ 
   isOpen, 
   onClose, 
   onMessageSent, 
@@ -32,6 +32,9 @@ const VoiceMode = ({
 
   const canvasRef = useRef(null);
   const animationFrameId = useRef(null);
+  
+  // Add state for waveform data
+  const [waveformData, setWaveformData] = useState(new Uint8Array(0));
 
   useEffect(() => {
     socketRef.current = io(process.env.SOCKET_API_URL || 'http://127.0.0.1:5000', {
@@ -106,7 +109,7 @@ const VoiceMode = ({
         return sum + norm * norm;
       }, 0) / dataArrayRef.current.length
     );
-    const threshold = 0.225;
+    const threshold = 0.075;
     const now = Date.now();
     const isSilent = rms < threshold;
 
@@ -347,4 +350,4 @@ const VoiceMode = ({
   );
 };
 
-export default VoiceMode;
+export default PublicVoiceAssistant;
