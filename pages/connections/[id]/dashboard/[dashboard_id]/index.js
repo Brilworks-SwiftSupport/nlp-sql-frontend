@@ -91,6 +91,38 @@ const DashboardView = () => {
     }
   };
 
+  const formatFieldName = (fieldName) => {
+    if (!fieldName) return '';
+    // Handle snake_case and camelCase
+    return fieldName
+      .replace(/_/g, ' ')
+      .replace(/([A-Z])/g, ' $1')
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ')
+      .trim();
+  };
+
+  const formatNumericValue = (value) => {
+    if (value === null || value === undefined) return '';
+    
+    // Check if it's a number
+    if (typeof value === 'number' || !isNaN(parseFloat(value))) {
+      const num = parseFloat(value);
+      
+      // For large numbers, use the existing formatting in the ticks callback
+      if (num >= 1000000) return (num / 1000000).toFixed(2) + 'M';
+      if (num >= 1000) return (num / 1000).toFixed(2) + 'K';
+      
+      // Format with 2 decimal places for float values
+      if (Math.floor(num) !== num) {
+        return num.toFixed(2);
+      }
+    }
+    
+    return value.toString();
+  };
+
   // Function to save layout to backend (only changed widgets)
   const saveLayout = async (newLayouts, oldLayouts) => {
     try {
@@ -291,11 +323,13 @@ const DashboardView = () => {
     const data = widget.visualization_settings?.chartData?.data?.[0] || {};
     const value = Object.values(data)[0];
     const label = Object.keys(data)[0];
+    const formattedLabel = formatFieldName(label);
+    const formattedValue = formatNumericValue(value);
 
     return (
       <div className="flex flex-col items-center justify-center h-full p-4">
-        <p className="text-sm text-gray-500">{label}</p>
-        <p className="text-4xl font-bold text-blue-600">{value}</p>
+        <p className="text-sm text-gray-500">{formattedLabel}</p>
+        <p className="text-4xl font-bold text-blue-600">{formattedValue}</p>
       </div>
     );
   };
@@ -565,8 +599,8 @@ const DashboardView = () => {
         // For bar and line charts
         else {
           datasets.push({
-            label: yAxisField.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim(),
-            data: queryResult.result.map(row => parseFloat(row[yAxisField]) || 0),
+            label: formatFieldName(yAxisField),
+            data: queryResult.result.map(row => row[yAxisField]),
             backgroundColor: colors[0]?.backgroundColor || 'hsla(210, 70%, 50%, 0.6)',
             borderColor: colors[0]?.borderColor || 'hsla(210, 70%, 50%, 1)',
             borderWidth: 1
@@ -816,6 +850,10 @@ const DashboardView = () => {
                 const isSingleValue = chartData?.data?.length === 1 && 
                   Object.keys(chartData.data[0]).length === 1;
                 
+                // Format the field name for single value display
+                const formattedFieldName = isSingleValue ? 
+                  formatFieldName(Object.keys(chartData.data[0])[0]) : '';
+                
                 console.log('Widget being rendered:', widget); // Add this for debugging
                 
                 return (
@@ -895,7 +933,7 @@ const DashboardView = () => {
                       
                     </div>
                     <div className="h-[calc(100%-80px)] overflow-auto">
-                      {isSingleValue ? renderMetricDisplay(widget) : renderChart(widget)}
+                      {isSingleValue ? renderMetricDisplay(widget, formattedFieldName) : renderChart(widget)}
                     </div>
                   </div>
                 );
