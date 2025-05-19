@@ -244,8 +244,8 @@ const ConnectionDetails = ({ connectionData, onChange, isEdit = false, onTestCon
           >
             <MenuItem value="sqlserver">Microsoft SQL Server</MenuItem>
             <MenuItem value="mysql">MySQL</MenuItem>
-            <MenuItem value="postgresql">PostgreSQL</MenuItem>
-            <MenuItem value="sqlite">SQLite</MenuItem>
+            {/* <MenuItem value="postgresql">PostgreSQL</MenuItem>
+            <MenuItem value="sqlite">SQLite</MenuItem> */}
             <MenuItem value="mongodb">MongoDB</MenuItem>
           </TextField>
         </Grid>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
@@ -40,6 +40,80 @@ ChartJS.register(
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
+const InsightsSection = ({ connectionId, dashboardId }) => {
+  const router = useRouter();
+  const exampleQuestions = useMemo(() => {
+    // Fintech template questions
+    // Fintech Id 120
+    if (connectionId === "120" ) {
+      return [
+        "e.g. What's my loan disbursement by month?",
+        "e.g. Show customer acquisition cost by channel",
+        "e.g. Display transaction volume trend by product",
+        "e.g. Compare payment defaults by region"
+      ];
+    }
+    // Retail Tech template questions
+    // Retail Tech Id 128
+    else if (connectionId === "128") {
+      return [
+        "e.g. How many total orders have been placed in 2024?",
+        "e.g. What is the total revenue generated?",
+        "e.g. Which product categories have the highest sales?",
+        "e.g. Top 10 products with the highest number of orders?"
+      ];
+    }
+    // Default general questions for other connection IDs
+    else {
+      return [
+        "e.g. What's my top revenue product by month?",
+        "e.g. Show loan disbursement by gender in 2024",
+        "e.g. Display monthly active users trend",
+        "e.g. Compare sales by region for Q1 2024"
+      ];
+    }
+  }, [connectionId]);
+
+  const handleQuestionClick = (question) => {
+    // Redirect to edit dashboard with the question as a query parameter
+    router.push({
+      pathname: `/connections/${connectionId}/dashboard/${dashboardId}/edit`,
+      query: { question: question.replace("e.g. ", "") }
+    });
+  };
+
+  return (
+    <div className="mb-6 bg-white rounded-lg shadow p-4">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center">
+          <h3 className="text-lg font-medium text-gray-900">Insights</h3>
+          <span className="ml-2 px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">NEW</span>
+        </div>
+        <button 
+          onClick={() => router.push(`/connections/${connectionId}/dashboard/${dashboardId}/edit`)}
+          className="inline-flex items-center px-3 py-1.5 border border-blue-600 text-sm font-medium rounded-md text-blue-600 bg-white hover:bg-blue-50"
+        >
+          <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Ask a Question
+        </button>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+        {exampleQuestions.map((question, index) => (
+          <button
+            key={index}
+            onClick={() => handleQuestionClick(question)}
+            className="text-left px-3 py-2 bg-yellow-50 border border-yellow-100 rounded-md text-sm text-gray-700 hover:bg-yellow-100 transition-colors"
+          >
+            {question}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const DashboardView = () => {
   const router = useRouter();
   const { id: connectionId, dashboard_id: dashboardId } = router.query;
@@ -58,6 +132,8 @@ const DashboardView = () => {
   const [currentMessage, setCurrentMessage] = useState('');
   const [queryResult, setQueryResult] = useState(null);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [isAskingQuestion, setIsAskingQuestion] = useState(false);
+  const [questionToAsk, setQuestionToAsk] = useState("");
 
   const handleDeleteWidget = async (widgetId) => {
     console.log('Deleting widget with ID:', widgetId); // Add this for debugging
@@ -221,6 +297,12 @@ const DashboardView = () => {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleAskQuestion = (question) => {
+    setQuestionToAsk(question);
+    setIsAskingQuestion(true);
+    setCurrentMessage(question);
   };
 
   useEffect(() => {
@@ -811,6 +893,12 @@ const DashboardView = () => {
             </div>
           </div>
 
+          {/* Insights Section */}
+          <InsightsSection 
+            connectionId={connectionId}
+            dashboardId={dashboardId}
+          />
+
           {error && (
             <Alert
               type="error"
@@ -951,7 +1039,7 @@ const DashboardView = () => {
           </div>
         </div>
       </div>
-      {isEditPopupOpen && selectedWidget && (
+      {(isEditPopupOpen || isAskingQuestion) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center overflow-y-auto">
           <div className="bg-white rounded-lg w-full max-w-4xl m-4 flex flex-col max-h-[90vh] relative">
             {/* Loading Overlay */}
@@ -965,17 +1053,23 @@ const DashboardView = () => {
             )}
 
             {/* Header */}
-            <div className="p-4 border-b border-gray-200 flex justify-between items-center shrink-0">
-              <h2 className="text-xl font-semibold">Edit Widget</h2>
-              <button
-                onClick={handleClosePopup}
-                className="text-gray-400 hover:text-gray-600"
-                disabled={isExecuting}
-              >
-                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+            <div className="px-6 py-4 border-b border-gray-200">
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg font-medium text-gray-900">
+                  {isEditPopupOpen ? "Edit Widget" : "Ask a Question"}
+                </h2>
+                <button
+                  onClick={() => {
+                    if (isEditPopupOpen) handleClosePopup();
+                    setIsAskingQuestion(false);
+                  }}
+                  className="text-gray-400 hover:text-gray-500"
+                >
+                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
 
             {/* Content */}

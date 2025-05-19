@@ -17,6 +17,7 @@ const NewDashboardPage = () => {
   });
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  
 
   const handleCreateDashboard = async () => {
     if (!dashboardInfo.name) return;

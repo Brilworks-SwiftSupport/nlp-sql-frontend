@@ -6,6 +6,37 @@ import Link from "next/link";
 import Layout from "../components/layout/Layout";
 import { connectionAPI, dashboardAPI } from "../lib/api";
 
+// Add these template definitions at the top of your component
+const connectionTemplates = [
+  {
+    // id: 120, // For production
+    id: 35,
+    name: "Fintech",
+    type: "Template",
+    database: "Banking & Payments",
+    description: "Templates for banking, payments, investments, and more.",
+    icon: (
+      <svg className="h-8 w-8 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+        <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" />
+        <path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clipRule="evenodd" />
+      </svg>
+    )
+  },
+  {
+    // id: 128, // For production
+    id: 37,
+    name: "Retail Tech",
+    type: "Template",
+    database: "E-commerce & POS",
+    description: "Templates for e-commerce, POS, inventory, analytics.",
+    icon: (
+      <svg className="h-8 w-8 text-pink-500" fill="currentColor" viewBox="0 0 20 20">
+        <path fillRule="evenodd" d="M10 2a4 4 0 00-4 4v1H5a1 1 0 00-.994.89l-1 9A1 1 0 004 18h12a1 1 0 00.994-1.11l-1-9A1 1 0 0015 7h-1V6a4 4 0 00-4-4zm2 5V6a2 2 0 10-4 0v1h4zm-6 3a1 1 0 112 0 1 1 0 01-2 0zm7-1a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" />
+      </svg>
+    )
+  }
+];
+
 export default function Dashboard() {
   const router = useRouter();
   const [showConnectionSelector, setShowConnectionSelector] = useState(false);
@@ -197,9 +228,54 @@ export default function Dashboard() {
     }
   }, [showConnectionSelector]);
 
-  const handleConnectionSelect = (connectionId) => {
+  const handleConnectionSelect = async (connectionId) => {
     setShowConnectionSelector(false);
-    router.push(`/connections/${connectionId}/dashboard/new`);
+    
+    // Find if this is a template from our templates array
+    const isTemplate = connectionTemplates.some(template => template.id === connectionId);
+    
+    // Check if this is a template selection
+    if (isTemplate) {
+      try {
+        setIsLoading(true);
+        
+        // Find the selected template
+        const selectedTemplate = connectionTemplates.find(template => template.id === connectionId);
+        
+        if (!selectedTemplate) {
+          throw new Error("Template not found");
+        }
+        
+        // Generate a unique name with a random number to avoid duplicates
+        const randomNum = Math.floor(Math.random() * 100);
+        const dashboardName = `${selectedTemplate.name} Dashboard ${randomNum}`;
+        
+        // Create dashboard using the API
+        const response = await dashboardAPI.create({
+          connection_id: selectedTemplate.id, // Use template ID as connection ID
+          name: dashboardName,
+          description: `Auto-generated dashboard using the ${selectedTemplate.name} template.`,
+          is_public: false,
+          layout: {},
+          template_type: selectedTemplate.id // Add template type for reference
+        });
+        
+        if (response && response.dashboard && response.dashboard.id) {
+          // Redirect to the dashboard details page
+          router.push(`/connections/${selectedTemplate.id}/dashboard/${response.dashboard.id}`);
+        } else {
+          throw new Error("Failed to create dashboard from template");
+        }
+      } catch (err) {
+        console.error("Error creating dashboard from template:", err);
+        setError("Failed to create dashboard from template. Please try again.");
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      // Handle regular connection selection
+      router.push(`/connections/${connectionId}/dashboard/new`);
+    }
   };
 
   return (
@@ -327,48 +403,114 @@ export default function Dashboard() {
       {showConnectionSelector && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-medium text-gray-900">Select a Connection</h2>
-              <button
-                onClick={() => setShowConnectionSelector(false)}
-                className="text-gray-400 hover:text-gray-500"
-              >
-                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
             {isLoading ? (
-              <div className="py-4 text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                <p className="mt-2 text-sm text-gray-500">Loading connections...</p>
-              </div>
-            ) : connections.length > 0 ? (
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {connections.map((connection) => (
-                  <button
-                    key={connection.id}
-                    onClick={() => handleConnectionSelect(connection.id)}
-                    className="w-full text-left px-4 py-3 border border-gray-200 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    <div className="font-medium text-gray-900">{connection.name}</div>
-                    <div className="text-sm text-gray-500">
-                      {connection.type} • {connection.database}
-                    </div>
-                  </button>
-                ))}
+              <div className="text-center py-8">
+                <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+                <h3 className="text-lg font-medium text-gray-900">Creating Dashboard</h3>
+                <p className="text-sm text-gray-500 mt-2">
+                  Please wait while we set up your dashboard...
+                </p>
               </div>
             ) : (
-              <div className="text-center py-8">
-                <p className="text-gray-500 mb-4">No connections available.</p>
-                <Link
-                  href="/connections/new"
-                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-                >
-                  Create Connection
-                </Link>
-              </div>
+              <>
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-lg font-medium text-gray-900">Choose a Template</h2>
+                  <button
+                    onClick={() => setShowConnectionSelector(false)}
+                    className="text-gray-400 hover:text-gray-500"
+                  >
+                    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                <p className="text-sm text-gray-500 mb-4 text-center">
+                  Pick a template category to jumpstart your dashboard.
+                </p>
+
+                {/* Template Options */}
+                <div className="space-y-3 mb-6">
+                  {connectionTemplates.map((template) => (
+                    <button
+                      key={template.id}
+                      onClick={() => handleConnectionSelect(template.id)}
+                      className="w-full text-left px-4 py-3 border border-gray-200 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center justify-between"
+                    >
+                      <div className="flex items-center">
+                        <div className="mr-3">
+                          {template.icon}
+                        </div>
+                        <div>
+                          <div className="font-medium text-gray-900">{template.name}</div>
+                          <div className="text-sm text-gray-500">
+                            {template.description}
+                          </div>
+                        </div>
+                      </div>
+                      <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Existing Connections Section */}
+                {connections.length > 0 && (
+                  <>
+                    <div className="relative my-6">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-gray-300"></div>
+                      </div>
+                      <div className="relative flex justify-center text-sm">
+                        <span className="px-2 bg-white text-gray-500">Or use existing connection</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {connections.map((connection) => (
+                        <button
+                          key={connection.id}
+                          onClick={() => handleConnectionSelect(connection.id)}
+                          className="w-full text-left px-4 py-3 border border-gray-200 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        >
+                          <div className="font-medium text-gray-900">{connection.name}</div>
+                          <div className="text-sm text-gray-500">
+                            {connection.type} • {connection.database}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {connections.length === 0 && (
+                  <div className="mt-4 text-center">
+                    <Link
+                      href="/connections/new"
+                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200"
+                    >
+                      <svg className="mr-2 -ml-1 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                      Create Custom Connection
+                    </Link>
+                  </div>
+                )}
+
+                {/* Back Button */}
+                <div className="mt-6 text-center">
+                  <button
+                    onClick={() => setShowConnectionSelector(false)}
+                    className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                  >
+                    <svg className="mr-2 -ml-1 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                    Back
+                  </button>
+                </div>
+              </>
             )}
           </div>
         </div>

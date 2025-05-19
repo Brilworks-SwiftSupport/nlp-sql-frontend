@@ -28,6 +28,7 @@ const DashboardEditPage = () => {
   const [currentConversation, setCurrentConversation] = useState(null);
   const [isConversationListOpen, setIsConversationListOpen] = useState(false);
   const [chartPreferences, setChartPreferences] = useState(null);
+  const [processedQuestion, setProcessedQuestion] = useState(false);
 
   // Resizable column state
   const [leftWidth, setLeftWidth] = useState(350); // px
@@ -359,8 +360,77 @@ const DashboardEditPage = () => {
     }
   };
 
+  // Add this useEffect to handle the question parameter
+  useEffect(() => {
+    if (!router.isReady) return;
+    if (processedQuestion) return; // Skip if we've already processed a question
+    
+    // Check if there's a question in the URL query parameters
+    const { question } = router.query;
+    if (question && question.trim() !== '') {
+      console.log('Question from URL:', question);
+      
+      // Mark as processed to prevent duplicate processing
+      setProcessedQuestion(true);
+      
+      // Set the current message to the question from the URL
+      setCurrentMessage(question);
+      
+      // Wait for the next render cycle before sending
+      setTimeout(() => {
+        // Manually trigger the query execution
+        const messageToSend = question;
+        
+        // Add user message to chat
+        const userMessage = {
+          type: 'user',
+          content: messageToSend,
+          timestamp: new Date().toISOString()
+        };
+        setMessages(prev => [...prev, userMessage]);
+        
+        // Execute query directly
+        handleQueryExecution(messageToSend)
+          .then(response => {
+            if (response) {
+              // Add system response to chat
+              const systemMessage = {
+                type: 'system',
+                content: response.status === 'success' 
+                  ? response.message
+                  : response.message || 'Sorry, I could not process your query.',
+                timestamp: new Date().toISOString(),
+                queryResult: response.status === 'success' ? response : null
+              };
+              setMessages(prev => [...prev, systemMessage]);
+            }
+          })
+          .catch(error => {
+            // Add error message to chat
+            const errorMessage = {
+              type: 'system',
+              content: 'Sorry, an error occurred while processing your query.',
+              timestamp: new Date().toISOString(),
+              error: true
+            };
+            setMessages(prev => [...prev, errorMessage]);
+          });
+        
+        // Clear the input field
+        setCurrentMessage('');
+        
+        // Remove the question from the URL to prevent re-execution on page refresh
+        router.replace(
+          `/connections/${connectionId}/dashboard/${dashboardId}/edit`, 
+          undefined, 
+          { shallow: true }
+        );
+      }, 1500);
+    }
+  }, [router.isReady, router.query, processedQuestion, connectionId, dashboardId]);
+
   const handleSendMessage = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (!currentMessage.trim()) return;
 
     // Add user message to chat
