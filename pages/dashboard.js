@@ -9,8 +9,8 @@ import { connectionAPI, dashboardAPI } from "../lib/api";
 // Add these template definitions at the top of your component
 const connectionTemplates = [
   {
-    // id: 120, // For production
-    id: 35,
+    id: 120, // For production
+    // id: 35,
     name: "Fintech",
     type: "Template",
     database: "Banking & Payments",
@@ -23,8 +23,8 @@ const connectionTemplates = [
     )
   },
   {
-    // id: 128, // For production
-    id: 37,
+    id: 128, // For production
+    // id: 37,
     name: "Retail Tech",
     type: "Template",
     database: "E-commerce & POS",
