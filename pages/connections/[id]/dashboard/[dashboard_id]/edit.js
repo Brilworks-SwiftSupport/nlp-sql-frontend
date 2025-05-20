@@ -30,6 +30,19 @@ const DashboardEditPage = () => {
   const [chartPreferences, setChartPreferences] = useState(null);
   const [processedQuestion, setProcessedQuestion] = useState(false);
 
+  // Track if we are on a small screen
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Update isMobile state on load and resize
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Resizable column state
   const [leftWidth, setLeftWidth] = useState(350); // px
   const [isResizing, setIsResizing] = useState(false);
@@ -527,11 +540,11 @@ const DashboardEditPage = () => {
       <Head>
         <title>Edit Dashboard - {dashboard?.name || 'Loading...'}</title>
       </Head>
-      <div className="flex flex-row h-[calc(100vh-4rem)] overflow-hidden bg-gray-50">
+      <div className="flex flex-col md:flex-row h-[calc(100vh-4rem)] overflow-hidden bg-gray-50">
         {/* Left Column: Data Assistant */}
         <div
-          className="bg-white border-r border-gray-200 flex flex-col transition-all duration-200"
-          style={{ width: leftWidth, minWidth: 220, maxWidth: 600 }}
+          className={`bg-white md:border-r border-gray-200 flex flex-col transition-all duration-200 ${isMobile ? 'w-full' : ''}`}
+          style={isMobile ? undefined : { width: leftWidth, minWidth: 220, maxWidth: 600 }}
         >
           <div className="p-4 border-b border-gray-200 flex justify-between items-center">
             <h1 className="text-xl font-semibold text-gray-900">Data Assistant</h1>
@@ -658,13 +671,15 @@ const DashboardEditPage = () => {
           </div>
         </div>
         {/* Divider */}
-        <div
-          className="w-2 cursor-col-resize bg-gray-200 hover:bg-blue-300 transition"
-          onMouseDown={startResizing}
-          style={{ zIndex: 20 }}
-        />
+        {!isMobile && (
+          <div
+            className="w-2 cursor-col-resize bg-gray-200 hover:bg-blue-300 transition"
+            onMouseDown={startResizing}
+            style={{ zIndex: 20 }}
+          />
+        )}
         {/* Right Column: Results */}
-        <div className="flex-1 flex flex-col overflow-y-auto">
+        <div className={`flex-1 flex flex-col overflow-y-auto ${isMobile ? 'w-full' : ''}`}> 
           <div className="p-4 border-b border-gray-200 bg-white">
             <div className="flex justify-between items-center">
               <h1 className="text-xl font-semibold text-gray-900">Results</h1>
