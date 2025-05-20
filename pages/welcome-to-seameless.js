@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Head from 'next/head';
 
 const features = [
@@ -42,22 +42,35 @@ export default function WelcomePage() {
     setCurrent((current + 1) % features.length);
   };
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrent((c) => (c + 1) % features.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
-    <div className="min-h-screen flex flex-col md:flex-row">
+    <div className="min-h-screen flex flex-col">
       <Head>
         <title>Welcome to Seameless</title>
       </Head>
-      <div className="w-full bg-blue-600 text-white text-center font-semibold py-2">
-        Experience the Demo. Win a Gift Worth AED 500!
+      <div className="w-full p-4 text-center">
+        <h1 className="text-3xl md:text-5xl font-extrabold flex items-center justify-center gap-2">
+          Experience the Demo. Win a Gift Worth AED 500!
+          <span className="text-4xl" role="img" aria-label="gift">
+            🎁
+          </span>
+        </h1>
       </div>
-      <div className="md:w-1/3 w-full flex items-center justify-center p-8 bg-gray-50">
-        <img
-          src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https%3A%2F%2Fnlp-sql-frontend-six.vercel.app%2Fget-started"
-          alt="Scan to get started"
-          className="rounded-lg shadow-md"
-        />
-      </div>
-      <div className="md:w-2/3 w-full relative flex flex-col items-center justify-center p-8 bg-white">
+      <div className="flex flex-col md:flex-row flex-grow">
+        <div className="md:w-1/2 w-full flex items-center justify-center p-8 bg-gray-50">
+          <img
+            src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https%3A%2F%2Fnlp-sql-frontend-six.vercel.app%2Fget-started"
+            alt="Scan to get started"
+            className="rounded-lg shadow-md"
+          />
+        </div>
+        <div className="md:w-1/2 w-full relative flex flex-col items-center justify-center p-8 bg-white">
         <div className="overflow-hidden w-full">
           <div
             className="flex transition-transform duration-500"
@@ -105,5 +118,6 @@ export default function WelcomePage() {
         </div>
       </div>
     </div>
+  </div>
   );
 }
