@@ -47,10 +47,10 @@ const InsightsSection = ({ connectionId, dashboardId }) => {
     // Fintech Id 120
     if (connectionId === "120" ) {
       return [
-        "e.g. What's my loan disbursement by month?",
-        "e.g. Show customer acquisition cost by channel",
-        "e.g. Display transaction volume trend by product",
-        "e.g. Compare payment defaults by region"
+        "e.g. Break down loan disbursement by status in this quarter",
+        "e.g. Top 5 client by credit card spend in last quarter",
+        "e.g. Total interest earned per month for last 6 months",
+        "e.g. How many new accounts were opened in december 2023"
       ];
     }
     // Retail Tech template questions
