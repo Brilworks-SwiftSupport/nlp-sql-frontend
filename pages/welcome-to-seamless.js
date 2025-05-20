@@ -66,7 +66,7 @@ export default function WelcomePage() {
             {/* Right side - Content */}
             <div className="md:w-3/5 p-8">
               <div className="flex items-center mb-4">
-                <h1 className="text-3xl font-bold text-gray-800">Try Our Solution – Win a Gift Worth 500 AED!</h1>
+                <h1 className="text-3xl font-bold text-gray-800">Try Our Solution – Win a Gift Worth 🎁 500 AED!</h1>
               </div>
               
               <p className="text-gray-600 text-lg mb-8">
