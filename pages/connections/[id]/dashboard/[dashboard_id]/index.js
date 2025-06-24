@@ -64,6 +64,14 @@ const InsightsSection = ({ connectionId, dashboardId }) => {
         "e.g. Top 10 products with the highest number of orders?"
       ];
     }
+    else if (connectionId === "135") {
+      return [
+        "e.g. Which brand tyre you have?",
+        "e.g. Give me type of tyres",
+        "e.g. Model list of tyre",
+        "e.g. What's my top revenue product by month?"
+      ];
+    }
     // Default general questions for other connection IDs
     else {
       return [
